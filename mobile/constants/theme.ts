@@ -1,28 +1,87 @@
 /**
  * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Professional UI/UX Color Palette: Cyan, Yellow, Gray
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Professional Color Palette
+const tintColorLight = '#06B6D4'; // Cyan
+const tintColorDark = '#06B6D4';  // Cyan
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    // Text colors
+    text: '#111827',          // Gray-900
+    textSecondary: '#6B7280', // Gray-500
+    textMuted: '#9CA3AF',     // Gray-400
+    
+    // Background colors
+    background: '#F9FAFB',    // Gray-50
+    surface: '#FFFFFF',       // White
+    surfaceSecondary: '#F3F4F6', // Gray-100
+    
+    // Brand colors
+    primary: '#06B6D4',       // Cyan-500
+    primaryLight: '#22D3EE',  // Cyan-400
+    primaryDark: '#0891B2',   // Cyan-600
+    
+    secondary: '#FBBF24',     // Yellow-400
+    secondaryLight: '#FCD34D', // Yellow-300
+    secondaryDark: '#F59E0B',  // Yellow-500
+    
+    // UI colors
+    border: '#E5E7EB',        // Gray-200
+    borderLight: '#F3F4F6',   // Gray-100
+    shadow: '#9CA3AF',        // Gray-400
+    
+    // Status colors
+    success: '#10B981',       // Green-500
+    error: '#EF4444',         // Red-500
+    warning: '#F59E0B',       // Yellow-500
+    info: '#06B6D4',          // Cyan-500
+    
+    // Tab bar
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#6B7280',
+    tabIconDefault: '#9CA3AF',
     tabIconSelected: tintColorLight,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    // Text colors
+    text: '#F9FAFB',          // Gray-50
+    textSecondary: '#D1D5DB', // Gray-300
+    textMuted: '#9CA3AF',     // Gray-400
+    
+    // Background colors
+    background: '#1F2937',    // Gray-800
+    surface: '#374151',       // Gray-700
+    surfaceSecondary: '#4B5563', // Gray-600
+    
+    // Brand colors
+    primary: '#06B6D4',       // Cyan-500
+    primaryLight: '#22D3EE',  // Cyan-400
+    primaryDark: '#0891B2',   // Cyan-600
+    
+    secondary: '#FBBF24',     // Yellow-400
+    secondaryLight: '#FCD34D', // Yellow-300
+    secondaryDark: '#F59E0B',  // Yellow-500
+    
+    // UI colors
+    border: '#4B5563',        // Gray-600
+    borderLight: '#374151',   // Gray-700
+    shadow: '#111827',        // Gray-900
+    
+    // Status colors
+    success: '#10B981',       // Green-500
+    error: '#EF4444',         // Red-500
+    warning: '#F59E0B',       // Yellow-500
+    info: '#06B6D4',          // Cyan-500
+    
+    // Tab bar
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: '#D1D5DB',
+    tabIconDefault: '#9CA3AF',
     tabIconSelected: tintColorDark,
   },
 };
