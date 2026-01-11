@@ -1,15 +1,14 @@
 import { Sequelize, Options } from 'sequelize';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { config } from './index.js';
 import { logger } from '../utils/logger.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function getSequelizeConfig(): Sequelize {
+  logger.info(`Connecting to MySQL database at: ${config.database.host}:${config.database.port}/${config.database.name}`);
 
-function getSequelizeConfig(): { sequelize: Sequelize; dialect: string } {
-  const baseOptions: Partial<Options> = {
+  const sequelizeConfig: Options = {
+    host: config.database.host,
+    port: config.database.port,
+    dialect: 'mysql',
     logging: config.env === 'development' ? (msg) => logger.debug(msg) : false,
     pool: {
       max: 10,
@@ -20,83 +19,50 @@ function getSequelizeConfig(): { sequelize: Sequelize; dialect: string } {
     define: {
       timestamps: true,
       underscored: true,
+      charset: 'utf8mb4',
+      collate: 'utf8mb4_unicode_ci',
+    },
+    dialectOptions: {
+      charset: 'utf8mb4',
+      dateStrings: true,
+      typeCast: true,
     },
   };
 
-  if (config.database.dialect === 'sqlite') {
-    // SQLite for development
-    const dbPath = path.resolve(__dirname, '../../', config.database.storage);
-    const dbDir = path.dirname(dbPath);
-    
-    // Ensure data directory exists
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
-    
-    logger.info(`Using SQLite database at: ${dbPath}`);
-    
-    return {
-      sequelize: new Sequelize({
-        ...baseOptions,
-        dialect: 'sqlite',
-        storage: dbPath,
-      } as Options),
-      dialect: 'sqlite',
-    };
-  }
-
-  // MySQL for production
-  logger.info(`Using MySQL database at: ${config.database.host}:${config.database.port}/${config.database.name}`);
-  
-  return {
-    sequelize: new Sequelize(
-      config.database.name,
-      config.database.user,
-      config.database.password,
-      {
-        ...baseOptions,
-        host: config.database.host,
-        port: config.database.port,
-        dialect: 'mysql',
-        define: {
-          ...baseOptions.define,
-          charset: 'utf8mb4',
-          collate: 'utf8mb4_unicode_ci',
-        },
-        dialectOptions: {
-          charset: 'utf8mb4',
-        },
-      } as Options
-    ),
-    dialect: 'mysql',
-  };
+  return new Sequelize(
+    config.database.name,
+    config.database.user,
+    config.database.password,
+    sequelizeConfig
+  );
 }
 
-const { sequelize, dialect } = getSequelizeConfig();
+let sequelize = getSequelizeConfig();
 
 export async function connectDatabase(): Promise<void> {
   try {
+    // If sequelize was previously closed, recreate it
+    if (sequelize.connectionManager.pool?.size === 0 && (sequelize.connectionManager as any)._closed) {
+      sequelize = getSequelizeConfig();
+    }
     await sequelize.authenticate();
-    logger.info(`✅ Database connection established successfully (${dialect})`);
+    logger.info(`✅ Database connection established successfully (MySQL)`);
   } catch (error) {
     logger.error('❌ Unable to connect to database:', error);
-    if (dialect === 'mysql') {
-      logger.warn('⚠️  Make sure MySQL is running and the database exists.');
-      logger.warn(`   Host: ${config.database.host}:${config.database.port}`);
-      logger.warn(`   Database: ${config.database.name}`);
-      logger.warn(`   User: ${config.database.user}`);
-    }
+    logger.warn('⚠️ Make sure MySQL is running and the database exists.');
+    logger.warn(`  Host: ${config.database.host}:${config.database.port}`);
+    logger.warn(`  Database: ${config.database.name}`);
+    logger.warn(`  User: ${config.database.user}`);
     throw error;
   }
 }
 
-export function getDialect(): string {
-  return dialect;
-}
-
 export async function syncDatabase(force = false): Promise<void> {
   try {
-    await sequelize.sync({ force, alter: !force && config.env === 'development' });
+    await sequelize.sync({ 
+      force, 
+      alter: !force && config.env === 'development' 
+    });
     logger.info('✅ Database synchronized successfully');
   } catch (error) {
     logger.error('❌ Database sync failed:', error);

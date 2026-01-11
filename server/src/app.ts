@@ -53,19 +53,21 @@ export function createApp(): Application {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Rate limiting
-  const limiter = rateLimit({
-    windowMs: config.rateLimit.windowMs,
-    max: config.rateLimit.maxRequests,
-    message: {
-      success: false,
-      error: 'Too many requests',
-      message: 'Please try again later',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use('/api/', limiter);
+  // Rate limiting (disabled in test environment)
+  if (config.env !== 'test') {
+    const limiter = rateLimit({
+      windowMs: config.rateLimit.windowMs,
+      max: config.rateLimit.maxRequests,
+      message: {
+        success: false,
+        error: 'Too many requests',
+        message: 'Please try again later',
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use('/api/', limiter);
+  }
 
   // Swagger documentation
   const swaggerOptions = {

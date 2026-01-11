@@ -30,9 +30,9 @@ export async function listUsers(req: AuthenticatedRequest, res: Response): Promi
 
   if (search) {
     where[Op.or] = [
-      { email: { [Op.iLike]: `%${search}%` } },
-      { firstName: { [Op.iLike]: `%${search}%` } },
-      { lastName: { [Op.iLike]: `%${search}%` } },
+      { email: { [Op.like]: `%${search}%` } },
+      { firstName: { [Op.like]: `%${search}%` } },
+      { lastName: { [Op.like]: `%${search}%` } },
     ];
   }
 

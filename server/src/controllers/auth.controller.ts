@@ -172,15 +172,20 @@ export async function logout(req: AuthenticatedRequest, res: Response): Promise<
   
   if (req.user) {
     // Revoke all refresh tokens for this user from this device
+    const whereClause: any = {
+      userId: req.user.userId,
+      revokedAt: { [Op.is]: null } as any,
+    };
+    
+    // Only filter by user-agent if it's present
+    const userAgent = req.headers['user-agent'];
+    if (userAgent) {
+      whereClause.userAgent = userAgent;
+    }
+    
     await RefreshToken.update(
       { revokedAt: new Date() },
-      { 
-        where: { 
-          userId: req.user.userId,
-          userAgent: req.headers['user-agent'],
-          revokedAt: { [Op.is]: null } as any,
-        } 
-      }
+      { where: whereClause }
     );
 
     await logAuthEvent(req, 'LOGOUT' as any, req.user.userId, true);

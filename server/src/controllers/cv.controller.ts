@@ -44,6 +44,13 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
     where: { isDefault: true, isActive: true },
   });
 
+  // Capture the response data before starting async processing
+  const responseData = {
+    id: cv.id,
+    status: cv.status,
+    originalFileName: cv.originalFileName,
+  };
+
   // Process CV asynchronously
   cvProcessor.processCV(cv, file.path, llmConfig || undefined)
     .then(result => {
@@ -58,11 +65,7 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
   res.status(202).json({
     success: true,
     message: 'CV uploaded and queued for processing',
-    data: {
-      id: cv.id,
-      status: cv.status,
-      originalFileName: cv.originalFileName,
-    },
+    data: responseData,
   });
 }
 
