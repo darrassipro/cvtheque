@@ -77,10 +77,10 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
     throw new ForbiddenError('Authentication required');
   }
 
-  const { 
-    page = 1, 
-    limit = 20, 
-    status, 
+  const {
+    page = 1,
+    limit = 20,
+    status,
     search,
     skills,
     minExperience,
@@ -97,7 +97,7 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
 
   // Build where clause for CVs
   const cvWhere: any = {};
-  
+
   // Non-admin users only see their own CVs
   if (req.user.role === 'USER') {
     cvWhere.userId = req.user.userId;
@@ -112,9 +112,9 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
 
   if (search) {
     extractedDataWhere[Op.or] = [
-      { fullName: { [Op.iLike]: `%${search}%` } },
-      { email: { [Op.iLike]: `%${search}%` } },
-      { rawText: { [Op.iLike]: `%${search}%` } },
+      { fullName: { [Op.like]: `%${search}%` } },
+      { email: { [Op.like]: `%${search}%` } },
+      { rawText: { [Op.like]: `%${search}%` } },
     ];
   }
 
@@ -144,7 +144,7 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
   }
 
   if (industry) {
-    extractedDataWhere.industry = { [Op.iLike]: `%${industry}%` };
+    extractedDataWhere.industry = { [Op.like]: `%${industry}%` };
   }
 
   const hasExtractedFilters = Object.keys(extractedDataWhere).length > 0;

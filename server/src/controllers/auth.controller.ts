@@ -125,7 +125,7 @@ export async function refreshAccessToken(req: AuthenticatedRequest, res: Respons
   const { refreshToken: token } = req.body;
 
   // Find and validate refresh token
-  const storedToken = await RefreshToken.findOne({ 
+  const storedToken = await RefreshToken.findOne({
     where: { token },
     include: [{ model: User, as: 'user' }],
   });
@@ -169,20 +169,20 @@ export async function refreshAccessToken(req: AuthenticatedRequest, res: Respons
  */
 export async function logout(req: AuthenticatedRequest, res: Response): Promise<void> {
   const authHeader = req.headers.authorization;
-  
+
   if (req.user) {
     // Revoke all refresh tokens for this user from this device
     const whereClause: any = {
       userId: req.user.userId,
-      revokedAt: { [Op.is]: null } as any,
+      revokedAt: { [Op.eq]: null }
     };
-    
+
     // Only filter by user-agent if it's present
     const userAgent = req.headers['user-agent'];
     if (userAgent) {
       whereClause.userAgent = userAgent;
     }
-    
+
     await RefreshToken.update(
       { revokedAt: new Date() },
       { where: whereClause }
@@ -208,7 +208,7 @@ export async function logoutAll(req: AuthenticatedRequest, res: Response): Promi
   // Revoke all refresh tokens for this user
   await RefreshToken.update(
     { revokedAt: new Date() },
-    { where: { userId: req.user.userId, revokedAt: { [Op.is]: null } as any } }
+    { where: { userId: req.user.userId, revokedAt: { [Op.eq]: null } as any } }
   );
 
   await logAuthEvent(req, 'LOGOUT' as any, req.user.userId, true, { logoutAll: true });
@@ -293,7 +293,7 @@ export async function changePassword(req: AuthenticatedRequest, res: Response): 
   // Revoke all refresh tokens
   await RefreshToken.update(
     { revokedAt: new Date() },
-    { where: { userId: user.id, revokedAt: { [Op.is]: null } as any } }
+    { where: { userId: user.id, revokedAt: { [Op.eq]: null } as any } }
   );
 
   res.json({

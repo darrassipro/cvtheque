@@ -8,7 +8,7 @@ function getSequelizeConfig(): Sequelize {
   const sequelizeConfig: Options = {
     host: config.database.host,
     port: config.database.port,
-    dialect: 'mysql',
+    dialect: config.database.dialect,
     logging: config.env === 'development' ? (msg) => logger.debug(msg) : false,
     pool: {
       max: 10,
@@ -42,10 +42,12 @@ let sequelize = getSequelizeConfig();
 export async function connectDatabase(): Promise<void> {
   try {
     // If sequelize was previously closed, recreate it
-    if (sequelize.connectionManager.pool?.size === 0 && (sequelize.connectionManager as any)._closed) {
+    try {
+      await sequelize.authenticate();
+    } catch (e) {
       sequelize = getSequelizeConfig();
+      await sequelize.authenticate();
     }
-    await sequelize.authenticate();
     logger.info(`✅ Database connection established successfully (MySQL)`);
   } catch (error) {
     logger.error('❌ Unable to connect to database:', error);
@@ -59,9 +61,9 @@ export async function connectDatabase(): Promise<void> {
 
 export async function syncDatabase(force = false): Promise<void> {
   try {
-    await sequelize.sync({ 
-      force, 
-      alter: !force && config.env === 'development' 
+    await sequelize.sync({
+      force,
+      alter: !force && config.env === 'development'
     });
     logger.info('✅ Database synchronized successfully');
   } catch (error) {

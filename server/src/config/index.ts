@@ -32,7 +32,7 @@ function getEnvVarBoolean(key: string, defaultValue: boolean): boolean {
 
 export const config = {
   env: getEnvVar('NODE_ENV', 'development'),
-  
+
   server: {
     port: getEnvVarNumber('PORT', 12000),
     httpsPort: getEnvVarNumber('HTTPS_PORT', 12001),
@@ -40,13 +40,12 @@ export const config = {
   },
 
   database: {
-    dialect: getEnvVar('DB_DIALECT', 'sqlite') as 'mysql' | 'sqlite',
+    dialect: getEnvVar('DB_DIALECT', 'mysql') as 'mysql' | 'sqlite',
     host: getEnvVar('DB_HOST', 'localhost'),
     port: getEnvVarNumber('DB_PORT', 3306),
     name: getEnvVar('DB_NAME', 'cvtech'),
     user: getEnvVar('DB_USER', 'root'),
     password: getEnvVar('DB_PASSWORD', ''),
-    storage: getEnvVar('DB_STORAGE', './data/cvtech.db'),
   },
 
   jwt: {
