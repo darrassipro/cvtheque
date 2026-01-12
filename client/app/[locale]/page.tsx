@@ -1,7 +1,7 @@
 import { setRequestLocale } from 'next-intl/server';
-import FezDiscoveryApp from '@/components/FezDiscoveryApp';
+import HomePage from '@/components/home/HomePage';
 
-export default async function HomePage({
+export default async function Home({
   params
 }: {
   params: Promise<{ locale: string }>;
@@ -9,5 +9,5 @@ export default async function HomePage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return <FezDiscoveryApp />;
+  return <HomePage />;
 }

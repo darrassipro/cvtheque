@@ -2,37 +2,37 @@ import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-
-// Les polices et les styles globaux sont gérés dans le root layout.
+import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
+import ModalContainer from '@/components/modals/ModalContainer';
 
 const locales = ['fr', 'ar', 'en'];
 
 export const metadata: Metadata = {
-  title: 'go fez',
-  description: 'go fez',
+  title: 'CVTech - Intelligent CV Management',
+  description: 'Upload, analyze, and manage CVs with advanced AI extraction',
   icons: '/icon.ico',
   openGraph: {
-    title: 'go fez',
-    description: 'go fez',
-    url: 'https://gofez.ma',
-    siteName: 'go fez',
+    title: 'CVTech - Intelligent CV Management',
+    description: 'Upload, analyze, and manage CVs with advanced AI extraction',
+    url: 'https://cvtech.com',
+    siteName: 'CVTech',
     images: [
       {
-        url: '/gofez_og.jpg',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'go fez',
+        alt: 'CVTech',
       },
     ],
-    locale: 'ar_MA',
+    locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'go fez',
-    description: 'go fez',
-    images: ['/gofez_og.jpg'],
-    creator: '@gofez',
+    title: 'CVTech - Intelligent CV Management',
+    description: 'Upload, analyze, and manage CVs with advanced AI extraction',
+    images: ['/og-image.jpg'],
   },
 };
 
@@ -53,7 +53,14 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      {children}
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1">
+          {children}
+        </main>
+        <Footer />
+        <ModalContainer />
+      </div>
     </NextIntlClientProvider>
   );
 }
