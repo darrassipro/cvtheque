@@ -43,6 +43,24 @@ export async function register(req: AuthenticatedRequest, res: Response): Promis
 
   logger.info(`New user registered: ${user.email}`);
 
+  // Set httpOnly cookie for access token
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: '/',
+  });
+
+  // Set httpOnly cookie for refresh token
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  });
+
   res.status(201).json({
     success: true,
     message: 'Registration successful',
@@ -105,6 +123,24 @@ export async function login(req: AuthenticatedRequest, res: Response): Promise<v
   });
 
   await logAuthEvent(req, 'LOGIN' as any, user.id, true);
+
+  // Set httpOnly cookie for access token
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: '/',
+  });
+
+  // Set httpOnly cookie for refresh token
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  });
 
   res.json({
     success: true,
@@ -190,6 +226,10 @@ export async function logout(req: AuthenticatedRequest, res: Response): Promise<
 
     await logAuthEvent(req, 'LOGOUT' as any, req.user.userId, true);
   }
+
+  // Clear httpOnly cookies
+  res.clearCookie('accessToken', { path: '/' });
+  res.clearCookie('refreshToken', { path: '/' });
 
   res.json({
     success: true,

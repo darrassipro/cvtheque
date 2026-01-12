@@ -30,12 +30,23 @@ export default function Header() {
 
   const handleLogout = async () => {
     try {
-      await logoutMutation().unwrap();
+      // Try to call logout on the server, but clear state regardless
+      try {
+        await logoutMutation().unwrap();
+      } catch (err) {
+        // Logout endpoint might fail due to expired session, but we still want to clear local state
+        console.warn('Server logout failed, clearing local state:', err);
+      }
+      
+      // Clear user from Redux state immediately
       dispatch(logOut());
       toast.success('Logged out successfully');
       router.push('/');
     } catch (err) {
-      toast.error('Logout failed');
+      console.error('Logout error:', err);
+      // Even if there's an error, clear the state
+      dispatch(logOut());
+      router.push('/');
     }
   };
 

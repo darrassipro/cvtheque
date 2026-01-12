@@ -7,28 +7,31 @@ import { logger } from '../utils/logger.js';
 
 /**
  * JWT Authentication Middleware
- * Validates access token and attaches user payload to request
+ * Validates access token from Authorization header or httpOnly cookies
  */
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   try {
-    const authHeader = req.headers.authorization;
+    let token: string | undefined;
     
-    if (!authHeader) {
+    // Try to get token from Authorization header first
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const [bearer, headerToken] = authHeader.split(' ');
+      if (bearer === 'Bearer' && headerToken) {
+        token = headerToken;
+      }
+    }
+    
+    // If no Authorization header, try to get from httpOnly cookies
+    if (!token && req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+    }
+    
+    if (!token) {
       res.status(401).json({
         success: false,
         error: 'Access token required',
-        message: 'No authorization header provided',
-      });
-      return;
-    }
-
-    const [bearer, token] = authHeader.split(' ');
-    
-    if (bearer !== 'Bearer' || !token) {
-      res.status(401).json({
-        success: false,
-        error: 'Invalid authorization format',
-        message: 'Authorization header must be in format: Bearer <token>',
+        message: 'No authorization header or token cookie provided',
       });
       return;
     }
@@ -66,20 +69,27 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
 
 /**
  * Optional Authentication Middleware
- * Attaches user if token exists but doesn't require it
+ * Attaches user if token exists (from header or cookies) but doesn't require it
  */
 export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   try {
+    let token: string | undefined;
+    
+    // Try to get token from Authorization header first
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      next();
-      return;
+    if (authHeader) {
+      const [bearer, headerToken] = authHeader.split(' ');
+      if (bearer === 'Bearer' && headerToken) {
+        token = headerToken;
+      }
     }
-
-    const [bearer, token] = authHeader.split(' ');
     
-    if (bearer === 'Bearer' && token) {
+    // If no Authorization header, try to get from httpOnly cookies
+    if (!token && req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+    }
+    
+    if (token) {
       try {
         const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
         req.user = decoded;
