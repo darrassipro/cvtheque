@@ -289,3 +289,231 @@ export async function healthCheck(req: AuthenticatedRequest, res: Response): Pro
     data: checks,
   });
 }
+
+/**
+ * List all users with filtering and pagination
+ */
+export async function listUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const {
+    page = 1,
+    limit = 20,
+    search,
+    role,
+    status,
+    sortBy = 'createdAt',
+    sortOrder = 'DESC',
+  } = req.query;
+
+  const pageNum = parseInt(page as string, 10);
+  const limitNum = parseInt(limit as string, 10);
+  const offset = (pageNum - 1) * limitNum;
+
+  // Build where clause
+  const whereClause: any = {};
+
+  if (search) {
+    whereClause[Op.or] = [
+      { firstName: { [Op.like]: `%${search}%` } },
+      { lastName: { [Op.like]: `%${search}%` } },
+      { email: { [Op.like]: `%${search}%` } },
+    ];
+  }
+
+  if (role) {
+    whereClause.role = role;
+  }
+
+  if (status) {
+    whereClause.status = status;
+  }
+
+  // Get users with pagination
+  const { count, rows: users } = await User.findAndCountAll({
+    where: whereClause,
+    limit: limitNum,
+    offset,
+    order: [[sortBy as string, sortOrder as string]],
+    attributes: { exclude: ['password'] },
+  });
+
+  res.json({
+    success: true,
+    data: {
+      users,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count,
+        totalPages: Math.ceil(count / limitNum),
+      },
+    },
+  });
+}
+
+/**
+ * Get user by ID
+ */
+export async function getUserById(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  const user = await User.findByPk(id, {
+    attributes: { exclude: ['password'] },
+  });
+
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: user,
+  });
+}
+
+/**
+ * Update user role
+ */
+export async function updateUserRole(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!Object.values(UserRole).includes(role)) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid role',
+    });
+    return;
+  }
+
+  const user = await User.findByPk(id);
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+    return;
+  }
+
+  const oldRole = user.role;
+  user.role = role;
+  await user.save();
+
+  // Log the change
+  await AuditLog.create({
+    userId: req.user!.userId,
+    action: 'UPDATE',
+    resource: 'User',
+    resourceId: id,
+    details: {
+      field: 'role',
+      oldValue: oldRole,
+      newValue: role,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({
+    success: true,
+    data: user,
+  });
+}
+
+/**
+ * Update user status
+ */
+export async function updateUserStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!Object.values(UserStatus).includes(status)) {
+    res.status(400).json({
+      success: false,
+      error: 'Invalid status',
+    });
+    return;
+  }
+
+  const user = await User.findByPk(id);
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+    return;
+  }
+
+  const oldStatus = user.status;
+  user.status = status;
+  await user.save();
+
+  // Log the change
+  await AuditLog.create({
+    userId: req.user!.userId,
+    action: 'UPDATE',
+    resource: 'User',
+    resourceId: id,
+    details: {
+      field: 'status',
+      oldValue: oldStatus,
+      newValue: status,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+
+  res.json({
+    success: true,
+    data: user,
+  });
+}
+
+/**
+ * Delete user
+ */
+export async function deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  const user = await User.findByPk(id);
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+    return;
+  }
+
+  // Prevent deleting superadmin
+  if (user.role === UserRole.SUPERADMIN) {
+    res.status(403).json({
+      success: false,
+      error: 'Cannot delete superadmin user',
+    });
+    return;
+  }
+
+  // Log before deletion
+  await AuditLog.create({
+    userId: req.user!.userId,
+    action: 'DELETE',
+    resource: 'User',
+    resourceId: id,
+    details: {
+      email: user.email,
+      role: user.role,
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+
+  await user.destroy();
+
+  res.json({
+    success: true,
+    message: 'User deleted successfully',
+  });
+}
