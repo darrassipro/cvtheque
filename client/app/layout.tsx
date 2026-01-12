@@ -85,9 +85,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar">
+    <html lang="ar" suppressHydrationWarning>
       <body
         className={`${cairo.variable} ${tajawal.variable} ${poppins.variable} ${mulish.variable} ${ibmPlexSansArabic.variable} ${geistSans.variable} font-cairo antialiased bg-background text-foreground`}
+        suppressHydrationWarning
       >
         <Suspense>
           <ReduxProvider>

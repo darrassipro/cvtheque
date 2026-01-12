@@ -2,26 +2,43 @@
 
 import { useSelector } from 'react-redux';
 import { RootState } from '@/lib/store';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { UserRole } from '@/types/user.types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import UserManagement from '@/components/admin/UserManagement';
 import { LayoutDashboard, Users, FileText, Settings, Activity } from 'lucide-react';
+import { useEffect } from 'react';
 
 export default function AdminPage() {
+  const router = useRouter();
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-  // Check if user is admin or moderator
+  useEffect(() => {
+    // Check if user is admin or moderator
+    if (!isAuthenticated || !user) {
+      router.push('/');
+      return;
+    }
+
+    const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN;
+    const isModerator = user.role === UserRole.MODERATOR;
+
+    if (!isAdmin && !isModerator) {
+      router.push('/');
+    }
+  }, [isAuthenticated, user, router]);
+
+  // During hydration, show nothing to prevent layout shift
   if (!isAuthenticated || !user) {
-    redirect('/');
+    return null;
   }
 
   const isAdmin = user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN;
   const isModerator = user.role === UserRole.MODERATOR;
 
   if (!isAdmin && !isModerator) {
-    redirect('/');
+    return null;
   }
 
   return (

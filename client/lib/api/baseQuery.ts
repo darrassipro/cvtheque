@@ -13,11 +13,26 @@ const baseQuery = fetchBaseQuery({
     const timeoutId = setTimeout(() => controller.abort(), HTTP_TIMEOUT);
 
     try {
+      console.log(`[RTK Query] Making request:`, {
+        url: url.toString(),
+        method: options.method || 'GET',
+        credentials: 'include',
+      });
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
       });
+
       clearTimeout(timeoutId);
+
+      console.log(`[RTK Query] Response:`, {
+        url: url.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
       return response;
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -28,6 +43,7 @@ const baseQuery = fetchBaseQuery({
     }
   },
   prepareHeaders: async (headers) => {
+    console.log(`[RTK Query] Request headers before:`, Object.fromEntries(headers.entries()));
     // Tokens are automatically sent via httpOnly cookies
     // No need to manually add Authorization header
     return headers;
@@ -36,10 +52,20 @@ const baseQuery = fetchBaseQuery({
 
 // BaseQuery with automatic token refresh on 401
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
+  console.log(`[RTK Query] baseQueryWithReauth called for:`, args);
+
   let result = await baseQuery(args, api, extraOptions);
-  
+
+  console.log(`[RTK Query] baseQuery result:`, {
+    status: result.error?.status,
+    error: result.error,
+    data: result.data ? 'has data' : 'no data',
+  });
+
   // If we receive a 401 error (unauthorized)
   if (result.error && result.error.status === 401) {
+    console.log(`[RTK Query] Got 401, attempting token refresh...`);
+
     // Try to refresh the token via httpOnly cookie
     const refreshResult = await baseQuery(
       {
@@ -49,12 +75,19 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
       api,
       extraOptions
     );
-    
+
+    console.log(`[RTK Query] Refresh result:`, {
+      success: !!refreshResult.data,
+      error: refreshResult.error,
+    });
+
     if (refreshResult.data) {
+      console.log(`[RTK Query] Token refresh successful, retrying original request...`);
       // New token is set via httpOnly cookie by backend
       // Retry the original request
       result = await baseQuery(args, api, extraOptions);
     } else {
+      console.log(`[RTK Query] Token refresh failed, logging out user`);
       // Refresh failed - user needs to login again
       if (typeof window !== 'undefined') {
         // Clear user state and redirect to home
@@ -62,7 +95,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
       }
     }
   }
-  
+
   return result;
 };
 

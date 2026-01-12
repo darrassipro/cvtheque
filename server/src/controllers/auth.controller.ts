@@ -158,13 +158,36 @@ export async function login(req: AuthenticatedRequest, res: Response): Promise<v
  * Refresh access token
  */
 export async function refreshAccessToken(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { refreshToken: token } = req.body;
+  console.log('[Refresh] Request received', {
+    body: req.body,
+    cookies: req.cookies,
+    headers: {
+      authorization: req.headers.authorization ? 'present' : 'missing',
+      'content-type': req.headers['content-type'],
+    },
+  });
+
+  // Get refresh token from body or httpOnly cookie
+  const token = req.body?.refreshToken || req.cookies?.refreshToken;
+
+  console.log('[Refresh] Token source:', {
+    fromBody: !!req.body?.refreshToken,
+    fromCookie: !!req.cookies?.refreshToken,
+    token: token ? `${token.substring(0, 20)}...` : 'missing',
+  });
+
+  if (!token) {
+    console.log('[Refresh] No refresh token provided');
+    throw new UnauthorizedError('Refresh token not provided');
+  }
 
   // Find and validate refresh token
   const storedToken = await RefreshToken.findOne({
     where: { token },
     include: [{ model: User, as: 'user' }],
   });
+
+  console.log('[Refresh] Stored token found:', !!storedToken);
 
   if (!storedToken || !storedToken.isValid()) {
     throw new UnauthorizedError('Invalid or expired refresh token');
@@ -188,6 +211,23 @@ export async function refreshAccessToken(req: AuthenticatedRequest, res: Respons
     expiresAt: new Date(Date.now() + parseExpiryToMs(config.jwt.refreshExpiresIn)),
     ipAddress: req.ip,
     userAgent: req.headers['user-agent'],
+  });
+
+  // Set new tokens in httpOnly cookies
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: '/',
+  });
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
   });
 
   res.json({

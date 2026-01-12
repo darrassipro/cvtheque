@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -48,6 +49,9 @@ export function createApp(): Application {
 
   // Compression
   app.use(compression());
+
+  // Cookie parsing
+  app.use(cookieParser());
 
   // Body parsing
   app.use(express.json({ limit: '10mb' }));

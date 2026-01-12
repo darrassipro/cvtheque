@@ -1,6 +1,25 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { User } from '@/types/user.types';
 
+// Load initial state from localStorage if available
+const loadAuthFromStorage = (): Pick<AuthState, 'user' | 'isAuthenticated'> => {
+  if (typeof window === 'undefined') {
+    return { user: null, isAuthenticated: false };
+  }
+  
+  try {
+    const savedUser = localStorage.getItem('cvtech_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      return { user, isAuthenticated: true };
+    }
+  } catch (error) {
+    console.error('Failed to load user from localStorage:', error);
+  }
+  
+  return { user: null, isAuthenticated: false };
+};
+
 interface AuthCredentials {
   user: User;
   token?: string;
@@ -28,8 +47,7 @@ const initialState: AuthState = {
   isForgotPasswordOpen: false,
   status: 'idle',
   error: null,
-  user: null,
-  isAuthenticated: false,
+  ...loadAuthFromStorage(),
 };
 
 const authSlice = createSlice({
@@ -42,6 +60,15 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.status = 'success';
       state.error = null;
+      
+      // Save to localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('cvtech_user', JSON.stringify(user));
+        } catch (error) {
+          console.error('Failed to save user to localStorage:', error);
+        }
+      }
     },
 
     logOut: (state) => {
@@ -49,11 +76,29 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.status = 'idle';
       state.error = null;
+      
+      // Remove from localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('cvtech_user');
+        } catch (error) {
+          console.error('Failed to remove user from localStorage:', error);
+        }
+      }
     },
 
     updateUser: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
+        
+        // Update localStorage
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('cvtech_user', JSON.stringify(state.user));
+          } catch (error) {
+            console.error('Failed to update user in localStorage:', error);
+          }
+        }
       }
     },
 

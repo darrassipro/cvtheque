@@ -144,24 +144,24 @@ export default function UserManagement() {
                 className="pl-10"
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <Select value={roleFilter || 'all'} onValueChange={(val) => setRoleFilter(val === 'all' ? '' : val)}>
               <SelectTrigger className="w-full md:w-40">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Roles</SelectItem>
+                <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value={UserRole.USER}>User</SelectItem>
                 <SelectItem value={UserRole.MODERATOR}>Moderator</SelectItem>
                 <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
                 <SelectItem value={UserRole.SUPERADMIN}>Super Admin</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter || 'all'} onValueChange={(val) => setStatusFilter(val === 'all' ? '' : val)}>
               <SelectTrigger className="w-full md:w-40">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value={UserStatus.ACTIVE}>Active</SelectItem>
                 <SelectItem value={UserStatus.PENDING}>Pending</SelectItem>
                 <SelectItem value={UserStatus.INACTIVE}>Inactive</SelectItem>
