@@ -18,9 +18,13 @@ async function startServer(): Promise<void> {
     logger.info('Connecting to database...');
     await connectDatabase();
 
-    // Sync database models
-    logger.info('Synchronizing database models...');
-    await syncDatabase(false);
+    // Sync database models (only if SEQUELIZE_SYNC is enabled)
+    if (config.database.sync) {
+      logger.info('Synchronizing database models...');
+      await syncDatabase(false);
+    } else {
+      logger.info('⏭️  Database sync skipped (SEQUELIZE_SYNC=false in .env)');
+    }
 
     // Seed superadmin if needed
     await seedSuperAdmin();

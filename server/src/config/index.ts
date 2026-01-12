@@ -40,12 +40,13 @@ export const config = {
   },
 
   database: {
-    dialect: getEnvVar('DB_DIALECT', 'mysql') as 'mysql' | 'sqlite',
+    dialect: getEnvVar('DB_DIALECT', 'mysql') as 'mysql',
     host: getEnvVar('DB_HOST', 'localhost'),
     port: getEnvVarNumber('DB_PORT', 3306),
     name: getEnvVar('DB_NAME', 'cvtech'),
     user: getEnvVar('DB_USER', 'root'),
     password: getEnvVar('DB_PASSWORD', ''),
+    sync: getEnvVarBoolean('SEQUELIZE_SYNC', false),
   },
 
   jwt: {

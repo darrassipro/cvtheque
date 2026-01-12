@@ -8,6 +8,9 @@ const nextConfig = {
   },
   // Évite les avertissements liés aux lockfiles en précisant la racine du workspace
   outputFileTracingRoot: path.join(__dirname, '..'),
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
