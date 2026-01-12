@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { CV, CVCardDisplay } from '@/types/cv.types';
 import { ICVService } from '@/services/cv/cvService.types';
 import { cvService } from '@/services/cv/cvService.mock';
+import { apiCVService } from '@/services/cv/cvService.api';
 
 interface UseCVDataReturn {
   cvs: CV[];
@@ -21,7 +22,7 @@ interface UseCVDataReturn {
  * Hook pour récupérer et gérer les données des CVs
  * Abstrait la source de données (mock, API)
  * 
- * @param service - Service CV à utiliser (défaut: cvService mock)
+ * @param service - Service CV à utiliser (défaut: apiCVService pour production)
  * @returns Données des CVs et état de chargement
  * 
  * @example
@@ -31,7 +32,7 @@ interface UseCVDataReturn {
  * if (error) return <Error message={error.message} />;
  * return <CVList cvs={displayCVs} />;
  */
-export function useCVData(service: ICVService = cvService): UseCVDataReturn {
+export function useCVData(service: ICVService = apiCVService): UseCVDataReturn {
   const [cvs, setCVs] = useState<CV[]>([]);
   const [displayCVs, setDisplayCVs] = useState<CVCardDisplay[]>([]);
   const [loading, setLoading] = useState(true);

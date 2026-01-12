@@ -9,6 +9,7 @@ import { CV } from '@/types/cv.types';
 import { CVFilters, ActiveFilter, FilterCategory, FilterState } from '@/types/filter.types';
 import { ICVService } from '@/services/cv/cvService.types';
 import { cvService } from '@/services/cv/cvService.mock';
+import { apiCVService } from '@/services/cv/cvService.api';
 
 interface UseCVFiltersProps {
   cvs: CV[];
@@ -50,7 +51,7 @@ interface UseCVFiltersReturn {
  */
 export function useCVFilters({
   cvs,
-  service = cvService
+  service = apiCVService
 }: UseCVFiltersProps): UseCVFiltersReturn {
   const [filters, setFilters] = useState<CVFilters>({});
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);

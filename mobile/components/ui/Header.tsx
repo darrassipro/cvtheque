@@ -5,7 +5,7 @@
  */
 
 import { View, Text, TouchableOpacity, Animated, Image } from 'react-native';
-import { Bell, User } from 'lucide-react-native';
+import { Bell, User, Upload } from 'lucide-react-native';
 import { SearchBar } from '@/components/search';
 
 interface HeaderProps {
@@ -18,8 +18,10 @@ interface HeaderProps {
   filterCount?: number;
   showNotifications?: boolean;
   showProfile?: boolean;
+  showUpload?: boolean;
   onNotificationPress?: () => void;
   onProfilePress?: () => void;
+  onUploadPress?: () => void;
   style?: any;
   opacity?: Animated.AnimatedInterpolation<number>;
   height?: Animated.AnimatedInterpolation<number>;
@@ -35,8 +37,10 @@ export default function Header({
   filterCount = 0,
   showNotifications = true,
   showProfile = true,
+  showUpload = false,
   onNotificationPress,
   onProfilePress,
+  onUploadPress,
   style,
   opacity,
   height,
@@ -46,6 +50,12 @@ export default function Header({
     opacity && { opacity },
     height && { height },
   ];
+
+  const handleUploadPress = () => {
+    if (onUploadPress) {
+      onUploadPress();
+    }
+  };
 
   return (
     <Animated.View style={containerStyle} className="bg-gray-50 border-b border-gray-200 overflow-hidden">
@@ -68,6 +78,16 @@ export default function Header({
 
           {/* Actions */}
           <View className="flex-row items-center gap-3">
+            {showUpload && (
+              <TouchableOpacity
+                className="w-10 h-10 rounded-xl bg-cyan-500 items-center justify-center active:bg-cyan-600"
+                activeOpacity={0.7}
+                onPress={handleUploadPress}
+              >
+                <Upload size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+            
             {showNotifications && (
               <TouchableOpacity
                 className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-200 relative"

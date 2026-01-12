@@ -1,16 +1,10 @@
-/**
- * Layout des Tabs
- * UI/UX Premium - Design épuré avec un seul tab visible
- * Le tab Explore est caché car utilisé uniquement pour l'onboarding
- */
-
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Home, Search, Briefcase, Settings } from 'lucide-react-native';
+import { Home, Upload, User } from 'lucide-react-native';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -58,11 +52,11 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* Tab Home - CVThèque principale */}
+      {/* Tab Home - CVs List */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Accueil',
+          title: 'CVs',
           tabBarShowLabel: false,
           tabBarIcon: ({ color, focused }) => (
             <View
@@ -85,11 +79,30 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tab Explore - CACHÉ (utilisé pour onboarding uniquement) */}
+      {/* Tab Profile */}
       <Tabs.Screen
         name="explore"
         options={{
-          href: null, // Cache complètement ce tab
+          title: 'Profile',
+          tabBarShowLabel: false,
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={{
+                width: 46,
+                height: 46,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: focused ? '#06B6D4' : 'transparent',
+                borderRadius: 23,
+              }}
+            >
+              <User 
+                size={23} 
+                color={focused ? '#FFFFFF' : '#6B7280'} 
+                strokeWidth={focused ? 2.2 : 2} 
+              />
+            </View>
+          ),
         }}
       />
     </Tabs>
