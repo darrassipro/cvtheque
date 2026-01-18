@@ -8,6 +8,8 @@ export interface User {
   lastName: string;
   role: 'USER' | 'MODERATOR' | 'ADMIN' | 'SUPERADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'SUSPENDED';
+  phone?: string;
+  profilePicture?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -63,6 +65,12 @@ const authSlice = createSlice({
 
       // Remove from AsyncStorage
       AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+      
+      // Clear all RTK Query caches to ensure fresh data on next login
+      // Import here to avoid circular dependency
+      import('../utils/cacheUtils').then(({ clearAllCaches }) => {
+        clearAllCaches();
+      });
     },
 
     updateUser: (state, action: PayloadAction<Partial<User>>) => {

@@ -153,6 +153,28 @@ export const userSchemas = {
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING']).optional(),
   }),
 
+  updateProfile: z.object({
+    firstName: commonSchemas.name.optional(),
+    lastName: commonSchemas.name.optional(),
+    email: commonSchemas.email.optional(),
+    phone: z.string().max(20).optional().nullable().or(z.literal('')),
+  }),
+
+  updateCV: z.object({
+    fullName: z.string().max(200).optional(),
+    email: commonSchemas.email.optional(),
+    phone: z.string().max(20).optional().nullable().or(z.literal('')),
+    location: z.string().max(200).optional(),
+    city: z.string().max(100).optional(),
+    country: z.string().max(100).optional(),
+    education: z.array(z.any()).optional(),
+    experience: z.array(z.any()).optional(),
+    skills: z.any().optional(),
+    languages: z.array(z.any()).optional(),
+    certifications: z.array(z.any()).optional(),
+    internships: z.array(z.any()).optional(),
+  }),
+
   updateRole: z.object({
     role: z.enum(['SUPERADMIN', 'ADMIN', 'MODERATOR', 'USER']),
   }),

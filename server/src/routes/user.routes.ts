@@ -14,6 +14,175 @@ router.use(requireActiveAccount);
 
 /**
  * @swagger
+ * /api/users/profile:
+ *   get:
+ *     summary: Get current user's profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user's profile
+ */
+router.get(
+  '/profile',
+  asyncHandler(userController.getProfile)
+);
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update current user's profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ */
+router.put(
+  '/profile',
+  validate({ body: userSchemas.updateProfile }),
+  asyncHandler(userController.updateProfile)
+);
+
+/**
+ * @swagger
+ * /api/users/profile/cv:
+ *   get:
+ *     summary: Get current user's CV information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's CV information
+ */
+router.get(
+  '/profile/cv',
+  asyncHandler(userController.getProfileCV)
+);
+
+/**
+ * @swagger
+ * /api/users/profile/cv:
+ *   put:
+ *     summary: Update current user's CV information
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               location:
+ *                 type: string
+ *               education:
+ *                 type: array
+ *               experience:
+ *                 type: array
+ *               skills:
+ *                 type: object
+ *               languages:
+ *                 type: array
+ *     responses:
+ *       200:
+ *         description: CV information updated successfully
+ */
+router.put(
+  '/profile/cv',
+  validate({ body: userSchemas.updateCV }),
+  asyncHandler(userController.updateProfileCV)
+);
+
+/**
+ * @swagger
+ * /api/users/profile/cvs:
+ *   get:
+ *     summary: List all user's CVs (completed and archived)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user's CVs
+ */
+router.get(
+  '/profile/cvs',
+  asyncHandler(userController.listUserCVs)
+);
+
+/**
+ * @swagger
+ * /api/users/profile/cvs/{cvId}/default:
+ *   put:
+ *     summary: Set a CV as default
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: cvId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: CV set as default
+ */
+router.put(
+  '/profile/cvs/:cvId/default',
+  asyncHandler(userController.setDefaultCV)
+);
+
+/**
+ * @swagger
+ * /api/users/profile/cvs/{cvId}:
+ *   delete:
+ *     summary: Delete a CV
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: cvId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: CV deleted
+ */
+router.delete(
+  '/profile/cvs/:cvId',
+  asyncHandler(userController.deleteCV)
+);
+
+/**
+ * @swagger
  * /api/users:
  *   get:
  *     summary: List all users

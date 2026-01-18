@@ -75,6 +75,7 @@ function flattenSkills(skills: any): string[] {
 
 /**
  * Upload and process a CV
+ * Allows multiple CVs, with only one marked as default
  */
 export async function uploadCV(req: AuthenticatedRequest, res: Response): Promise<void> {
   if (!req.file) {
@@ -88,13 +89,25 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
   const file = req.file;
   const documentType = getDocumentType(file.mimetype);
 
-  // Create CV record
+  // Check if user already has a default CV
+  const defaultCV = await CV.findOne({
+    where: {
+      userId: req.user.userId,
+      isDefault: true,
+    },
+  });
+
+  // Create new CV record
+  // If this is the first CV or user doesn't have a default, make it default
+  const isDefault = !defaultCV;
+  
   const cv = await CV.create({
     userId: req.user.userId,
     originalFileName: file.originalname,
     documentType: documentType as DocumentType,
     fileSize: file.size,
     status: CVStatus.PENDING,
+    isDefault: isDefault,
   });
 
   await logAudit(req, AuditAction.UPLOAD, 'cv', cv.id);

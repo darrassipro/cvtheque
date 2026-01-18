@@ -20,6 +20,7 @@ import { useSearch } from '@/hooks/useSearch';
 import Header from '@/components/ui/Header';
 import { FilterPanel, FilterModal } from '@/components/search';
 import { CVAvatar, CVInfo, CVSkills, CVLanguages, CVMetadata, CVActions, CVList } from '@/components/cv';
+import { clearCVCache } from '@/lib/utils/cacheUtils';
 import type { CVCardDisplay } from '@/types/cv.types';
 
 /**
@@ -114,6 +115,8 @@ export default function HomeScreen() {
   // Pull to refresh
   const onRefresh = async () => {
     setRefreshing(true);
+    // Clear RTK Query cache to force fresh data from server
+    clearCVCache();
     await refetch();
     setRefreshing(false);
   };

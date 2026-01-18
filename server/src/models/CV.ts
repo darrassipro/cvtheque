@@ -7,6 +7,7 @@ export enum CVStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  ARCHIVED = 'ARCHIVED',
 }
 
 export enum DocumentType {
@@ -29,6 +30,7 @@ export interface CVAttributes {
   
   // Processing Status
   status: CVStatus;
+  isDefault: boolean;
   processingStartedAt?: Date;
   processingCompletedAt?: Date;
   processingError?: string;
@@ -53,7 +55,7 @@ export interface CVAttributes {
 }
 
 export interface CVCreationAttributes extends Optional<CVAttributes, 
-  'id' | 'status' | 'googleDriveFileId' | 'googleDriveMimeType' | 'fileChecksum' |
+  'id' | 'status' | 'isDefault' | 'googleDriveFileId' | 'googleDriveMimeType' | 'fileChecksum' |
   'processingStartedAt' | 'processingCompletedAt' | 'processingError' |
   'photoUrl' | 'photoPublicId' | 'photoWidth' | 'photoHeight' |
   'aiSummary' | 'confidenceScore' | 'llmProvider' | 'llmModel' | 'extractionVersion' |
@@ -70,6 +72,7 @@ export class CV extends Model<CVAttributes, CVCreationAttributes> implements CVA
   declare googleDriveMimeType?: string;
   declare fileChecksum?: string;
   declare status: CVStatus;
+  declare isDefault: boolean;
   declare processingStartedAt?: Date;
   declare processingCompletedAt?: Date;
   declare processingError?: string;
@@ -157,6 +160,12 @@ CV.init(
       type: DataTypes.ENUM(...Object.values(CVStatus)),
       defaultValue: CVStatus.PENDING,
       allowNull: false,
+    },
+    isDefault: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+      field: 'is_default',
     },
     processingStartedAt: {
       type: DataTypes.DATE,

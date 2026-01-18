@@ -28,11 +28,21 @@ import {
   Home,
   Sparkles
 } from 'lucide-react-native';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/lib/store';
 
 export default function UploadCVScreen() {
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [uploadCV, { isLoading }] = useUploadCVMutation();
   const screenHeight = Dimensions.get('window').height;
+  
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/auth-modal');
+    }
+  }, [isAuthenticated]);
   
   // Animation values
   const sparkleAnim = useRef(new Animated.Value(0)).current;

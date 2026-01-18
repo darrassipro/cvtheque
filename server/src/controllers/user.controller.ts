@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
-import { User, UserRole, UserStatus } from '../models/index.js';
+import { User, UserRole, UserStatus, CV, CVExtractedData, CVStatus } from '../models/index.js';
 import { AuthenticatedRequest } from '../types/index.js';
 import { NotFoundError, ForbiddenError, ConflictError } from '../middleware/errorHandler.js';
 import { canModifyUser } from '../middleware/authorize.js';
@@ -281,6 +281,323 @@ export async function suspendUser(req: AuthenticatedRequest, res: Response): Pro
     success: true,
     message: 'User suspended successfully',
     data: user.toJSON(),
+  });
+}
+
+/**
+ * Get current user's profile
+ */
+export async function getProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const user = await User.findByPk(req.user.userId, {
+    attributes: { exclude: ['password'] },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User');
+  }
+
+  res.json({
+    success: true,
+    data: user.toJSON(),
+  });
+}
+
+/**
+ * Update current user's profile
+ */
+export async function updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const { firstName, lastName, email, phone } = req.body;
+
+  const user = await User.findByPk(req.user.userId);
+  if (!user) {
+    throw new NotFoundError('User');
+  }
+
+  // Check if email is being changed and if it's already taken
+  if (email && email !== user.email) {
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      throw new ConflictError('Email already in use');
+    }
+  }
+
+  await user.update({
+    ...(firstName !== undefined && { firstName }),
+    ...(lastName !== undefined && { lastName }),
+    ...(email !== undefined && { email }),
+    ...(phone !== undefined && { phone }),
+  });
+
+  await logAudit(req, AuditAction.UPDATE, 'user', user.id);
+
+  res.json({
+    success: true,
+    message: 'Profile updated successfully',
+    data: user.toJSON(),
+  });
+}
+
+/**
+ * Get current user's CV information
+ */
+export async function getProfileCV(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  // Get user's default completed CV with extracted data
+  const cv = await CV.findOne({
+    where: {
+      userId: req.user.userId,
+      status: CVStatus.COMPLETED,
+      isDefault: true,
+    },
+    include: [{
+      model: CVExtractedData,
+      as: 'extractedData',
+      required: false,
+    }],
+  });
+
+  const extractedData = (cv as any).extractedData as CVExtractedData | null;
+  
+  if (!cv || !extractedData) {
+    res.json({
+      success: true,
+      data: null,
+      message: 'No CV data found',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      cvId: cv.id,
+      ...extractedData.toJSON(),
+    },
+  });
+}
+
+/**
+ * Update current user's CV information
+ */
+export async function updateProfileCV(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const {
+    fullName,
+    email,
+    phone,
+    location,
+    city,
+    country,
+    education,
+    experience,
+    skills,
+    languages,
+    certifications,
+    internships,
+  } = req.body;
+
+  // Get user's most recent completed CV
+  const cv = await CV.findOne({
+    where: {
+      userId: req.user.userId,
+      status: CVStatus.COMPLETED,
+    },
+    include: [{
+      model: CVExtractedData,
+      as: 'extractedData',
+      required: false,
+    }],
+    order: [['createdAt', 'DESC']],
+  });
+
+  if (!cv) {
+    throw new NotFoundError('No CV found. Please upload a CV first.');
+  }
+
+  const extractedData = (cv as any).extractedData as CVExtractedData | null;
+  
+  if (!extractedData) {
+    throw new NotFoundError('CV data not available. Please wait for CV processing to complete.');
+  }
+
+  // Update extracted data
+  await extractedData.update({
+    ...(fullName !== undefined && { fullName }),
+    ...(email !== undefined && { email }),
+    ...(phone !== undefined && { phone }),
+    ...(location !== undefined && { location }),
+    ...(city !== undefined && { city }),
+    ...(country !== undefined && { country }),
+    ...(education !== undefined && { education }),
+    ...(experience !== undefined && { experience }),
+    ...(skills !== undefined && { skills }),
+    ...(languages !== undefined && { languages }),
+    ...(certifications !== undefined && { certifications }),
+    ...(internships !== undefined && { internships }),
+  });
+
+  await logAudit(req, AuditAction.UPDATE, 'cv_extracted_data', extractedData.id);
+
+  res.json({
+    success: true,
+    message: 'CV information updated successfully',
+    data: extractedData.toJSON(),
+  });
+}
+
+/**
+ * List all user's CVs (completed and archived)
+ */
+export async function listUserCVs(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const cvs = await CV.findAll({
+    where: {
+      userId: req.user.userId,
+      status: [CVStatus.COMPLETED, CVStatus.ARCHIVED],
+    },
+    include: [{
+      model: CVExtractedData,
+      as: 'extractedData',
+      required: false,
+      attributes: ['id', 'fullName', 'email', 'phone', 'location'],
+    }],
+    order: [['isDefault', 'DESC'], ['createdAt', 'DESC']],
+    attributes: ['id', 'originalFileName', 'status', 'isDefault', 'fileSize', 'createdAt', 'updatedAt'],
+  });
+
+  const formattedCVs = cvs.map(cv => ({
+    id: cv.id,
+    originalFileName: cv.originalFileName,
+    status: cv.status,
+    isDefault: cv.isDefault,
+    fileSize: cv.fileSize,
+    createdAt: cv.createdAt,
+    updatedAt: cv.updatedAt,
+    extractedData: (cv as any).extractedData ? {
+      fullName: (cv as any).extractedData.fullName,
+      email: (cv as any).extractedData.email,
+      phone: (cv as any).extractedData.phone,
+      location: (cv as any).extractedData.location,
+    } : null,
+  }));
+
+  res.json({
+    success: true,
+    data: formattedCVs,
+  });
+}
+
+/**
+ * Set a CV as default
+ */
+export async function setDefaultCV(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const { cvId } = req.params;
+
+  // Get the CV to set as default
+  const cv = await CV.findOne({
+    where: {
+      id: cvId,
+      userId: req.user.userId,
+      status: [CVStatus.COMPLETED, CVStatus.ARCHIVED],
+    },
+  });
+
+  if (!cv) {
+    throw new NotFoundError('CV not found');
+  }
+
+  // Unset all other CVs as default
+  await CV.update(
+    { isDefault: false },
+    { where: { userId: req.user.userId } }
+  );
+
+  // Set this CV as default
+  await cv.update({ isDefault: true });
+  await logAudit(req, AuditAction.UPDATE, 'cv', cv.id, { action: 'set_default' });
+
+  res.json({
+    success: true,
+    message: 'CV set as default',
+    data: cv.toJSON(),
+  });
+}
+
+/**
+ * Delete a CV
+ */
+export async function deleteCV(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const { cvId } = req.params;
+
+  // Get the CV to delete
+  const cv = await CV.findOne({
+    where: {
+      id: cvId,
+      userId: req.user.userId,
+      status: [CVStatus.COMPLETED, CVStatus.ARCHIVED],
+    },
+  });
+
+  if (!cv) {
+    throw new NotFoundError('CV not found');
+  }
+
+  // If this is the default CV, set another one as default if available
+  if (cv.isDefault) {
+    const nextCV = await CV.findOne({
+      where: {
+        userId: req.user.userId,
+        id: { [Op.ne]: cvId },
+        status: [CVStatus.COMPLETED, CVStatus.ARCHIVED],
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (nextCV) {
+      await nextCV.update({ isDefault: true });
+    }
+  }
+
+  // Delete the CV and its extracted data
+  const extractedData = await CVExtractedData.findOne({
+    where: { cvId: cv.id },
+  });
+
+  if (extractedData) {
+    await extractedData.destroy();
+  }
+
+  await cv.destroy();
+  await logAudit(req, AuditAction.DELETE, 'cv', cv.id);
+
+  res.json({
+    success: true,
+    message: 'CV deleted successfully',
   });
 }
 

@@ -17,9 +17,10 @@ import {
   SafeAreaView,
   Animated,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useLoginMutation, useRegisterMutation } from '@/lib/services/authApi';
 import { setCredentials } from '@/lib/slices/authSlice';
+import { RootState } from '@/lib/store';
 import { router } from 'expo-router';
 import { 
   Eye, 
@@ -40,6 +41,7 @@ type AuthMode = 'login' | 'register';
 
 export default function AuthModalScreen() {
   const dispatch = useDispatch();
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const [mode, setMode] = useState<AuthMode>('login');
   
   // Login fields
@@ -66,6 +68,13 @@ export default function AuthModalScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // If user is already authenticated, redirect them away from auth modal
+    if (isAuthenticated) {
+      console.log('[Auth Modal] User already authenticated - redirecting to home');
+      router.replace('/(tabs)');
+      return;
+    }
+
     // Subtle shield pulse animation
     Animated.loop(
       Animated.sequence([
@@ -88,7 +97,7 @@ export default function AuthModalScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [isAuthenticated]);
 
   // Handle close/dismiss
   const handleDismiss = () => {

@@ -7,6 +7,7 @@
 import { View, Text, TouchableOpacity, Animated, Image } from 'react-native';
 import { Bell, User, Upload } from 'lucide-react-native';
 import { SearchBar } from '@/components/search';
+import UserAvatar from './UserAvatar';
 
 interface HeaderProps {
   title?: string;
@@ -99,24 +100,12 @@ export default function Header({
               </TouchableOpacity>
             )}
             
-            {showProfile && (
-              <TouchableOpacity
-                className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200"
-                activeOpacity={0.7}
-                onPress={onProfilePress}
-              >
-                <Image
-                  source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            )}
+            {showProfile && <UserAvatar />}
           </View>
         </View>
 
         {/* Search Bar */}
-        {showSearch && (
+        {showSearch && onSearchChange && onFilterPress && (
           <View className="mb-5">
             <SearchBar
               value={searchValue}

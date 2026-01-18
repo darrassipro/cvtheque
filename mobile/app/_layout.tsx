@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import './globals.css';
 import ReduxProvider from '@/lib/ReduxProvider';
+import { ToastProvider } from '@/lib/context/ToastContext';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useEffect, useState } from 'react';
@@ -81,7 +82,8 @@ function AppContent() {
       return;
     }
 
-    // Onboarding has been seen OR user is already authenticated
+    // Onboarding has been seen - check authentication
+    // If authenticated, stay on main tabs (don't navigate)
     // If not authenticated, show auth modal
     if (!isAuthenticated) {
       console.log('[Navigation] Not authenticated - showing auth modal');
@@ -91,7 +93,11 @@ function AppContent() {
         router.push('/auth-modal');
       }, 100);
     } else {
-      console.log('[Navigation] Authenticated - home page visible');
+      console.log('[Navigation] Authenticated - hiding auth modal and showing home');
+      // If user somehow navigated to auth-modal while authenticated, go back to tabs
+      if (router.canGoBack()) {
+        router.back();
+      }
     }
   }, [hasSeenOnboarding, isAuthenticated, isLoading, isCheckingOnboarding]);
 
@@ -161,7 +167,9 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <ReduxProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </ReduxProvider>
   );
 }
