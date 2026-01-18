@@ -17,15 +17,27 @@ export interface CVProcessingResult {
   error?: string;
 }
 
+interface LanguageProfile {
+  code: 'fr' | 'en' | 'mixed';
+  confidence: number;
+  frenchScore: number;
+  englishScore: number;
+}
+
+interface ExtractionContext {
+  language: LanguageProfile;
+  sections: Map<string, { start: number; end: number; content: string }>;
+  lines: string[];
+  documentType: string;
+}
+
 /**
- * CV Processing Service
- * Orchestrates the complete CV ingestion pipeline:
- * 1. Upload to Google Drive
- * 2. Extract text
- * 3. Extract photo
- * 4. LLM structured extraction
- * 5. Generate AI summary
- * 6. Store results
+ * Enhanced CV Processing Service with Advanced Extraction
+ * Features:
+ * - Multi-language support (French, English, Mixed)
+ * - Robust pattern matching with fallbacks
+ * - Section-aware extraction
+ * - Stress-tested edge case handling
  */
 class CVProcessorService {
   private textExtractor = getTextExtractorService();
@@ -46,17 +58,14 @@ class CVProcessorService {
     logger.info(`Starting CV processing for: ${cv.id}, LLM enabled: ${llmEnabled}`);
 
     try {
-      // Update status to processing
       await cv.update({
         status: CVStatus.PROCESSING,
         processingStartedAt: new Date(),
       });
 
-      // Step 1: Calculate checksum
       const checksum = await this.calculateChecksum(filePath);
       await cv.update({ fileChecksum: checksum });
 
-      // Step 2: Upload to Google Drive
       if (this.driveService.isAvailable()) {
         const driveFile = await this.driveService.uploadFile(
           filePath,
@@ -70,25 +79,21 @@ class CVProcessorService {
         logger.info(`CV uploaded to Google Drive: ${driveFile.fileId}`);
       }
 
-      // Step 3: Extract text with intelligent validation
       const mimeType = this.getMimeType(cv.documentType);
       const textResult = await this.textExtractor.extractText(filePath, mimeType);
       
-      // Validate extracted text with smart heuristics
       const validationResult = this.validateExtractedText(textResult.text, cv.documentType);
       
       if (!validationResult.isValid) {
-        throw new Error(`Insufficient text extracted from document: ${validationResult.reason}`);
+        throw new Error(`Insufficient text extracted: ${validationResult.reason}`);
       }
 
       const cleanedText = this.textExtractor.cleanText(textResult.text);
       const detectedLanguage = this.textExtractor.detectLanguage(cleanedText);
       logger.info(`Text extracted: ${cleanedText.length} chars, language: ${detectedLanguage}, quality: ${validationResult.quality}`);
       
-      // Log extracted text for debugging
       logger.debug(`\n${'='.repeat(80)}\nEXTRACTED TEXT FROM CV (${cv.id}):\n${'='.repeat(80)}\n${cleanedText}\n${'='.repeat(80)}\n`);
 
-      // Step 4: Extract photo (if present)
       let photoInfo: { url: string; publicId: string; width: number; height: number } | null = null;
       
       if (this.cloudinaryService.isAvailable()) {
@@ -117,7 +122,6 @@ class CVProcessorService {
         }
       }
 
-      // Step 5: LLM Extraction (only if enabled)
       let extractionResult: CVExtractionResult;
       let provider: string = 'basic';
       let model: string = 'regex-based';
@@ -129,32 +133,26 @@ class CVProcessorService {
         provider = llmResult.provider;
         model = llmResult.model;
 
-        // Check for extraction error
         if ('error' in extractionResult) {
           throw new Error(`LLM extraction failed: ${extractionResult.reason}`);
         }
       } else {
-        logger.info(`Using basic extraction (LLM disabled or no config available)`);
-        // Use basic regex-based extraction
-        extractionResult = this.performBasicExtraction(cleanedText);
+        logger.info(`Using ADVANCED extraction (LLM disabled)`);
+        extractionResult = this.performAdvancedExtraction(cleanedText, cv.documentType);
       }
 
-      // Update photo_detected based on actual extraction
       const cvData = extractionResult as CVExtractionResult;
       cvData.photo_detected = photoInfo !== null;
 
-      // Step 6: Generate AI Summary (only if LLM is enabled)
       let aiSummary = '';
       if (llmEnabled && llmConfig) {
         aiSummary = await this.llmService.generateSummary(cvData, llmConfig);
         logger.info(`AI summary generated: ${aiSummary.length} chars`);
       } else {
-        // Use basic summary for non-LLM extraction
-        aiSummary = this.generateBasicSummary(cvData);
-        logger.info(`Basic summary generated: ${aiSummary.length} chars`);
+        aiSummary = this.generateAdvancedSummary(cvData);
+        logger.info(`Advanced summary generated: ${aiSummary.length} chars`);
       }
 
-      // Step 7: Store extracted data
       const dataToStore = {
         cvId: cv.id,
         fullName: cvData.personal_info.full_name || undefined,
@@ -185,7 +183,6 @@ class CVProcessorService {
       
       const extractedData = await CVExtractedData.create(dataToStore);
 
-      // Step 8: Update CV with final status
       await cv.update({
         status: CVStatus.COMPLETED,
         processingCompletedAt: new Date(),
@@ -193,10 +190,9 @@ class CVProcessorService {
         confidenceScore: cvData.confidence_score,
         llmProvider: provider,
         llmModel: model,
-        extractionVersion: '1.0.0',
+        extractionVersion: '2.0.0',
       });
 
-      // Cleanup temp file
       await cleanupUploadedFile(filePath);
 
       logger.info(`CV processing completed: ${cv.id}`);
@@ -209,13 +205,11 @@ class CVProcessorService {
     } catch (error) {
       logger.error(`CV processing failed for ${cv.id}:`, error);
 
-      // Update status to failed
       await cv.update({
         status: CVStatus.FAILED,
         processingError: error instanceof Error ? error.message : 'Unknown error',
       });
 
-      // Cleanup temp file
       await cleanupUploadedFile(filePath);
 
       return {
@@ -227,7 +221,1081 @@ class CVProcessorService {
   }
 
   /**
-   * Reprocess a failed CV
+   * ADVANCED EXTRACTION ENGINE
+   * Multi-phase, context-aware extraction with language detection
+   */
+  private performAdvancedExtraction(text: string, documentType: string): CVExtractionResult {
+    logger.info('[ADVANCED] Starting advanced extraction engine');
+    
+    const context = this.buildExtractionContext(text, documentType);
+    
+    logger.info(`[ADVANCED] Language detected: ${context.language.code} (confidence: ${context.language.confidence.toFixed(2)})`);
+    logger.info(`[ADVANCED] Sections identified: ${Array.from(context.sections.keys()).join(', ')}`);
+
+    const personalInfo = this.extractPersonalInfo(context);
+    const experience = this.extractExperienceAdvanced(context);
+    const education = this.extractEducationAdvanced(context);
+    const skills = this.extractSkillsAdvanced(context);
+    const languages = this.extractLanguagesAdvanced(context);
+    const certifications = this.extractCertificationsAdvanced(context);
+    const projects = this.extractProjectsAdvanced(context);
+    
+    const totalExperienceYears = this.calculateExperienceYears(experience);
+    const seniorityLevel = this.estimateSeniority(totalExperienceYears, experience, education);
+    const industry = this.detectIndustry(skills, experience);
+
+    const result: CVExtractionResult = {
+      confidence_score: this.calculateConfidenceScore(personalInfo, experience, education, skills),
+      photo_detected: false,
+      personal_info: personalInfo,
+      education: education,
+      experience: experience,
+      skills: skills,
+      languages: languages,
+      certifications: certifications,
+      internships: projects,
+      metadata: {
+        total_experience_years: totalExperienceYears,
+        seniority_level: seniorityLevel,
+        industry: industry,
+        keywords: [...skills, ...languages],
+      },
+    };
+
+    logger.info('[ADVANCED] Extraction complete');
+    logger.info(JSON.stringify(result, null, 2));
+
+    return result;
+  }
+
+  /**
+   * Build extraction context with language detection and section mapping
+   */
+  private buildExtractionContext(text: string, documentType: string): ExtractionContext {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const language = this.detectLanguage(text);
+    const sections = this.identifySections(text, language);
+
+    return {
+      language,
+      sections,
+      lines,
+      documentType,
+    };
+  }
+
+  /**
+   * Advanced language detection
+   */
+  private detectLanguage(text: string): LanguageProfile {
+    const textLower = text.toLowerCase();
+
+    const frenchKeywords = [
+      'expérience', 'éducation', 'formation', 'compétences', 'competences',
+      'langues', 'certifications', 'projets', 'professionnel', 'développeur',
+      'ingénieur', 'université', 'école', 'diplôme', 'licence', 'master',
+      'stage', 'mission', 'réalisation', 'responsabilités', 'poste'
+    ];
+
+    const englishKeywords = [
+      'experience', 'education', 'skills', 'languages', 'certifications',
+      'projects', 'professional', 'developer', 'engineer', 'university',
+      'school', 'degree', 'bachelor', 'master', 'internship', 'position',
+      'responsibilities', 'achievements', 'role'
+    ];
+
+    let frenchScore = 0;
+    let englishScore = 0;
+
+    frenchKeywords.forEach(kw => {
+      const regex = new RegExp(`\\b${kw}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) frenchScore += matches.length;
+    });
+
+    englishKeywords.forEach(kw => {
+      const regex = new RegExp(`\\b${kw}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) englishScore += matches.length;
+    });
+
+    const total = frenchScore + englishScore;
+    const confidence = total > 0 ? Math.max(frenchScore, englishScore) / total : 0.5;
+
+    let code: 'fr' | 'en' | 'mixed' = 'en';
+    if (frenchScore > englishScore * 1.5) {
+      code = 'fr';
+    } else if (englishScore > frenchScore * 1.5) {
+      code = 'en';
+    } else {
+      code = 'mixed';
+    }
+
+    return {
+      code,
+      confidence,
+      frenchScore,
+      englishScore,
+    };
+  }
+
+  /**
+   * Identify and map CV sections
+   */
+  private identifySections(text: string, language: LanguageProfile): Map<string, { start: number; end: number; content: string }> {
+    const sections = new Map();
+
+    const sectionPatterns = {
+      experience: language.code === 'fr' 
+        ? /(?:EXPÉRIENCE|EXPERIENCE PROFESSIONNELLE|PARCOURS PROFESSIONNEL)/i
+        : /(?:EXPERIENCE|PROFESSIONAL EXPERIENCE|WORK HISTORY|EMPLOYMENT)/i,
+      education: language.code === 'fr'
+        ? /(?:FORMATION|ÉDUCATION|ÉTUDES|PARCOURS ACADÉMIQUE)/i
+        : /(?:EDUCATION|ACADEMIC BACKGROUND|QUALIFICATIONS)/i,
+      skills: language.code === 'fr'
+        ? /(?:COMPÉTENCES|COMPETENCES|SAVOIR-FAIRE)/i
+        : /(?:SKILLS|COMPETENCIES|TECHNICAL SKILLS|EXPERTISE)/i,
+      languages: language.code === 'fr'
+        ? /(?:LANGUES)/i
+        : /(?:LANGUAGES)/i,
+      certifications: language.code === 'fr'
+        ? /(?:CERTIFICATIONS|CERTIFICATS)/i
+        : /(?:CERTIFICATIONS|CERTIFICATES|LICENSES)/i,
+      projects: language.code === 'fr'
+        ? /(?:PROJETS|RÉALISATIONS)/i
+        : /(?:PROJECTS|PORTFOLIO|KEY PROJECTS)/i,
+      summary: language.code === 'fr'
+        ? /(?:RÉSUMÉ|PROFIL|À PROPOS)/i
+        : /(?:SUMMARY|PROFILE|ABOUT|OBJECTIVE)/i,
+    };
+
+    const lines = text.split('\n');
+    const sectionStarts: Array<{ name: string; index: number }> = [];
+
+    Object.entries(sectionPatterns).forEach(([name, pattern]) => {
+      lines.forEach((line, idx) => {
+        if (pattern.test(line.trim())) {
+          sectionStarts.push({ name, index: idx });
+        }
+      });
+    });
+
+    sectionStarts.sort((a, b) => a.index - b.index);
+
+    sectionStarts.forEach((section, idx) => {
+      const start = section.index;
+      const end = idx < sectionStarts.length - 1 ? sectionStarts[idx + 1].index : lines.length;
+      const content = lines.slice(start, end).join('\n');
+
+      sections.set(section.name, {
+        start,
+        end,
+        content,
+      });
+    });
+
+    return sections;
+  }
+
+  /**
+   * Extract personal information with multi-phase approach
+   */
+  private extractPersonalInfo(context: ExtractionContext): any {
+    logger.info('[ADVANCED] Extracting personal info');
+
+    const { lines } = context;
+    const fullText = lines.join('\n');
+
+    // Email - Enhanced pattern that explicitly excludes digits before @
+    const emailPattern = /(?<!\d)([a-zA-Z][\w.+-]*@[a-zA-Z0-9][\w.-]*\.[a-zA-Z]{2,})/;
+    const emailMatch = fullText.match(emailPattern);
+
+    // Phone - More strict pattern that stops at year boundaries
+    const phonePattern = /(?:Tel|Phone|Mobile|Téléphone|Tél|GSM|Contact)?[\s:]*(\+?\d{10,15})(?!\d*[-]\d{4})/i;
+    const phoneMatch = fullText.match(phonePattern);
+
+    // Clean phone number
+    let cleanPhone = '';
+    if (phoneMatch) {
+      cleanPhone = phoneMatch[1].replace(/[\s.\-()]/g, '').trim();
+      // Validate phone length (10-15 digits)
+      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        cleanPhone = '';
+      }
+    }
+
+    // Name extraction - Multi-phase strategy
+    const fullName = this.extractNameMultiPhase(context, emailMatch?.[0], phoneMatch?.[0]);
+
+    // Position/Title
+    const position = this.extractPosition(context);
+
+    // Location
+    const location = this.extractLocation(context);
+
+    // LinkedIn
+    const linkedinPattern = /(?:linkedin\.com\/in\/|lnkd\.in\/|linkedin:?\s*)([a-zA-Z0-9\-]+)/i;
+    const linkedinMatch = fullText.match(linkedinPattern);
+
+    const result = {
+      full_name: fullName,
+      position: position,
+      email: emailMatch ? emailMatch[1].trim() : '',
+      phone: cleanPhone,
+      location: location,
+      linkedin: linkedinMatch ? `https://linkedin.com/in/${linkedinMatch[1]}` : '',
+      age: null,
+      gender: null,
+    };
+
+    logger.debug(`[ADVANCED] Personal info: ${JSON.stringify(result)}`);
+    return result;
+  }
+
+  /**
+   * Multi-phase name extraction with fallbacks
+   */
+  private extractNameMultiPhase(context: ExtractionContext, email?: string, phone?: string): string {
+    const { lines } = context;
+    
+    // Enhanced exclude patterns - be more aggressive
+    const excludePatterns = [
+      /^(?:CURRICULUM|VITAE|CV|RESUME|RÉSUMÉ)/i,
+      /\b(?:ENGINEER|MANAGER|DEVELOPER|DÉVELOPPEUR|DIRECTOR|DESIGNER|ARCHITECT|INGÉNIEUR|ANALYST|CONSULTANT|SPECIALIST|COORDINATOR|TECHNICIAN|TECHNICIEN|OFFICER|EXECUTIVE|SUPERVISOR|ASSISTANT|INTERN|LEAD|CHIEF|HEAD|FULL STACK|FRONTEND|BACKEND|GÉNIE|INFORMATIQUE|FABRICATION|MECANIQUE|MÉCANIQUE)\b/i,
+      /@|http|www\.|github\.com|linkedin/i,
+      /^\d+/,
+      /EXPERIENCE|EDUCATION|SKILLS|FORMATION|COMPÉTENCES|COMPETENCES|PROJET|PROJECT|CERTIFICATION/i,
+      /\d{4}\s*[-–—]\s*\d{4}/, // Date ranges
+      /^\s*fes\s*$/i, // City names alone
+      /^[A-Z\s]{20,}$/, // All caps long strings
+      /Technologies|Utilisees|Spring|Boot|Security|MySQL|Framework|JPA|Repository/i,
+    ];
+
+    let searchEndLine = 40;
+    
+    // Find where contact info appears to limit search
+    if (email || phone) {
+      const contactLine = lines.findIndex(l => 
+        (email && l.toLowerCase().includes(email.toLowerCase())) || 
+        (phone && l.includes(phone))
+      );
+      if (contactLine > 10) searchEndLine = contactLine;
+    }
+
+    // Phase 1: Strict ALL CAPS full name pattern (common in CVs)
+    // Looking for: "Y O U N E S  D A R R A S S I" or "YOUNES DARRASSI"
+    for (let i = 0; i < Math.min(15, lines.length); i++) {
+      const line = lines[i].trim();
+      
+      if (!line || line.length < 5 || line.length > 100) continue;
+      if (excludePatterns.some(p => p.test(line))) continue;
+      
+      // Check for spaced out caps: "Y O U N E S  D A R R A S S I"
+      const spacedCapsMatch = line.match(/^([A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ]\s){2,}[A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ]+$/);
+      if (spacedCapsMatch) {
+        const name = line.replace(/\s+/g, ' ').trim();
+        logger.info(`[NAME] Phase 1a - Spaced Caps: "${name}"`);
+        return name;
+      }
+      
+      // Check for regular caps: "YOUNES DARRASSI" - convert to title case
+      const capsMatch = line.match(/^([A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ]+\s){1,3}[A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ]+$/);
+      if (capsMatch && line === line.toUpperCase()) {
+        // Make sure it's not a section header or tech term
+        const wordCount = line.split(/\s+/).length;
+        if (wordCount >= 2 && wordCount <= 4 && line.length >= 8 && line.length <= 50) {
+          // Convert to title case
+          const titleCase = line.split(/\s+/).map(word => 
+            word.charAt(0) + word.slice(1).toLowerCase()
+          ).join(' ');
+          logger.info(`[NAME] Phase 1b - All Caps: "${titleCase}"`);
+          return titleCase;
+        }
+      }
+    }
+
+    // Phase 2: Strict title case, 2-3 words
+    for (let i = 0; i < Math.min(searchEndLine, lines.length); i++) {
+      const line = lines[i].trim();
+      
+      if (!line || line.length < 5 || line.length > 80) continue;
+      if (excludePatterns.some(p => p.test(line))) continue;
+      if (line === line.toUpperCase() || line === line.toLowerCase()) continue;
+      if (line.includes('|') || line.includes(':') || line.includes('/')) continue;
+
+      const strictMatch = line.match(/^([A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ][a-zàâäæçéèêëïîôöœùûü]+(?:[\s-][A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ][a-zàâäæçéèêëïîôöœùûü]+){1,3})$/);
+      
+      if (strictMatch && !/\d/.test(line)) {
+        const wordCount = line.split(/\s+/).length;
+        if (wordCount >= 2 && wordCount <= 4) {
+          logger.info(`[NAME] Phase 2 - Strict Title Case: "${line}"`);
+          return line;
+        }
+      }
+    }
+
+    // Phase 3: Look near the top but after sections
+    const topNonSectionLines = lines.slice(0, 30).filter(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 0 && 
+             !trimmed.match(/^(?:EXPERIENCE|EDUCATION|PROJET|PROJECT|COMPETENCES|SKILLS|CERTIFICATION)/i);
+    });
+
+    for (const line of topNonSectionLines) {
+      const trimmed = line.trim();
+      
+      if (trimmed.length < 5 || trimmed.length > 100) continue;
+      if (excludePatterns.some(p => p.test(trimmed))) continue;
+      
+      if (/^[A-ZÀÂÄÆÇÉÈÊËÏÎÔÖŒÙÛÜ]/.test(trimmed) && /[a-z]/.test(trimmed) && /[\s-]/.test(trimmed)) {
+        const wordCount = trimmed.split(/\s+/).length;
+        if (wordCount >= 2 && wordCount <= 5 && !trimmed.match(/\d{4}/)) {
+          // Extra validation: not a sentence (no common French/English words)
+          const commonWords = /\b(?:the|a|an|is|are|was|were|le|la|les|un|une|des|et|ou|dans|pour|avec|sur)\b/i;
+          if (!commonWords.test(trimmed)) {
+            logger.info(`[NAME] Phase 3 - Flexible: "${trimmed}"`);
+            return trimmed;
+          }
+        }
+      }
+    }
+
+    logger.warn('[NAME] Failed to extract name - using fallback');
+    return 'Name Not Found';
+  }
+
+  /**
+   * Extract position/job title
+   */
+  private extractPosition(context: ExtractionContext): string {
+    const { lines, language } = context;
+
+    const titleKeywords = language.code === 'fr'
+      ? ['Développeur', 'Ingénieur', 'Architecte', 'Chef', 'Directeur', 'Consultant', 'Analyste', 'Technicien', 'Responsable', 'Manager']
+      : ['Developer', 'Engineer', 'Architect', 'Lead', 'Director', 'Manager', 'Consultant', 'Analyst', 'Specialist', 'Designer'];
+
+    for (let i = 0; i < Math.min(15, lines.length); i++) {
+      const line = lines[i].trim();
+      
+      if (line.includes('|') || titleKeywords.some(kw => line.includes(kw))) {
+        if (line.length > 10 && line.length < 200 && !line.includes('@')) {
+          logger.debug(`[POSITION] Found: "${line}"`);
+          return line;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract location information
+   */
+  private extractLocation(context: ExtractionContext): string {
+    const { lines } = context;
+    const fullText = lines.join('\n');
+
+    // Technology terms that should NOT be considered locations
+    const techTerms = [
+      'Spring', 'Boot', 'React', 'Angular', 'Node', 'Express', 'Django', 'Flask',
+      'Laravel', 'Symfony', 'MySQL', 'MongoDB', 'PostgreSQL', 'Redis', 'Docker',
+      'Kubernetes', 'AWS', 'Azure', 'GCP', 'JavaScript', 'TypeScript', 'Python',
+      'Java', 'PHP', 'Ruby', 'Security', 'Framework', 'Library'
+    ];
+
+    // Common city names in Morocco and worldwide
+    const validCities = [
+      'Fès', 'Fes', 'Casablanca', 'Rabat', 'Marrakech', 'Tanger', 'Agadir',
+      'Mohammedia', 'Oujda', 'Kenitra', 'Tetouan', 'Paris', 'London', 'New York',
+      'Dubai', 'Berlin', 'Madrid', 'Rome', 'Amsterdam'
+    ];
+
+    // Pattern 1: "City, Country" format
+    const cityCountryPattern = /\b([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)?),\s*([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)?)\b/;
+    const cityCountryMatch = fullText.match(cityCountryPattern);
+    
+    if (cityCountryMatch) {
+      const city = cityCountryMatch[1].trim();
+      const country = cityCountryMatch[2].trim();
+      
+      // Validate it's not a tech term
+      if (!techTerms.some(tech => city.includes(tech) || country.includes(tech))) {
+        const location = `${city}, ${country}`;
+        logger.debug(`[LOCATION] Found (City, Country): "${location}"`);
+        return location;
+      }
+    }
+
+    // Pattern 2: Look for lines with just city names (top 20 lines)
+    const topLines = lines.slice(0, 20);
+    for (const line of topLines) {
+      const trimmed = line.trim();
+      
+      // Check if line matches a known city
+      const matchedCity = validCities.find(city => 
+        trimmed.toLowerCase() === city.toLowerCase()
+      );
+      
+      if (matchedCity) {
+        logger.debug(`[LOCATION] Found city: "${matchedCity}"`);
+        return matchedCity;
+      }
+      
+      // Pattern: "Location: City" or "Adresse: City"
+      const locationLabelMatch = trimmed.match(/(?:Location|Adresse|Address|Ville|City)[\s:]+([A-Za-zÀ-ÿ\s,]+)/i);
+      if (locationLabelMatch) {
+        const location = locationLabelMatch[1].split('\n')[0].trim(); // Take only first line
+        // Validate not a tech term
+        if (!techTerms.some(tech => location.includes(tech)) && location.length < 50) {
+          logger.debug(`[LOCATION] Found (labeled): "${location}"`);
+          return location;
+        }
+      }
+    }
+
+    // Pattern 3: Look in experience/education sections for "l City" pattern
+    const locationInSectionPattern = /\bl\s+([A-Z][a-zà-ÿ]+)\b/g;
+    let match;
+    const candidates: string[] = [];
+    
+    while ((match = locationInSectionPattern.exec(fullText)) !== null) {
+      const candidate = match[1];
+      if (!techTerms.includes(candidate) && candidate.length >= 3) {
+        candidates.push(candidate);
+      }
+    }
+    
+    if (candidates.length > 0) {
+      // Return most common location
+      const locationCounts = candidates.reduce((acc, loc) => {
+        acc[loc] = (acc[loc] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const mostCommon = Object.entries(locationCounts)
+        .sort(([, a], [, b]) => b - a)[0];
+      
+      if (mostCommon) {
+        logger.debug(`[LOCATION] Found (from sections): "${mostCommon[0]}"`);
+        return mostCommon[0];
+      }
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract experience with advanced date parsing
+   */
+  private extractExperienceAdvanced(context: ExtractionContext): any[] {
+    logger.info('[ADVANCED] Extracting experience');
+
+    const section = context.sections.get('experience');
+    if (!section) {
+      logger.debug('[EXPERIENCE] No experience section found');
+      return [];
+    }
+
+    const experiences: any[] = [];
+    const lines = section.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    // Date patterns - more specific to avoid confusion
+    const datePatterns = [
+      // MM/YYYY - MM/YYYY or MM/YYYY - Present (with boundaries)
+      /\b(\d{2})\/(\d{4})\s*[-–—]\s*(?:(\d{2})\/(\d{4})|(?:present|current|aujourd'hui|actuel|now))\b/gi,
+      // YYYY - YYYY (with word boundaries to avoid picking up phone numbers)
+      /\b(\d{4})\s*[-–—]\s*(?:(\d{4})|(?:present|current|aujourd'hui|actuel|now))\b/gi,
+      // Month YYYY - Month YYYY
+      /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)[a-z]*\.?\s+(\d{4})\s*[-–—]\s*(?:(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc)[a-z]*\.?\s+)?(\d{4}|present|current|aujourd'hui|actuel)\b/gi,
+    ];
+
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      
+      // Skip section headers
+      if (line.match(/^(?:EXPERIENCE|EXPÉRIENCE|PROFESSIONAL|PARCOURS)/i)) {
+        i++;
+        continue;
+      }
+
+      // Check for dates in current line
+      let foundDate = false;
+      
+      for (const pattern of datePatterns) {
+        pattern.lastIndex = 0;
+        const dateMatch = pattern.exec(line);
+        
+        if (dateMatch) {
+          foundDate = true;
+          let startYear: number;
+          let endYear: number | string;
+
+          // Parse based on pattern matched
+          if (dateMatch[1] && dateMatch[2]) {
+            if (/^\d{4}$/.test(dateMatch[1])) {
+              // YYYY - YYYY format
+              startYear = parseInt(dateMatch[1]);
+              endYear = dateMatch[2]?.toLowerCase().match(/present|current|aujourd'hui|actuel/)
+                ? 'Present'
+                : parseInt(dateMatch[2]);
+            } else if (/^\d{2}$/.test(dateMatch[1])) {
+              // MM/YYYY format
+              startYear = parseInt(dateMatch[2]);
+              endYear = dateMatch[4] || 'Present';
+              if (typeof endYear === 'string' && /^\d{4}$/.test(endYear)) {
+                endYear = parseInt(endYear);
+              }
+            } else {
+              // Month YYYY format
+              startYear = parseInt(dateMatch[2]);
+              endYear = dateMatch[4] || 'Present';
+              if (typeof endYear === 'string' && /^\d{4}$/.test(endYear)) {
+                endYear = parseInt(endYear);
+              }
+            }
+          } else {
+            i++;
+            continue;
+          }
+
+          // Extract position and company from surrounding lines
+          let position = '';
+          let company = '';
+          let location = '';
+
+          // Look backwards for position/company (up to 5 lines)
+          for (let j = Math.max(0, i - 5); j < i; j++) {
+            const prevLine = lines[j];
+            
+            // Skip if already processed or looks like description
+            if (prevLine.match(/^[-•]/) || prevLine.match(/Technologies|Utilisees|Conception|Développement/i)) {
+              continue;
+            }
+
+            // Check for pipe-separated format
+            if (prevLine.includes('|')) {
+              const parts = prevLine.split('|').map(p => p.trim());
+              if (!position) position = parts[0] || '';
+              if (!company) company = parts[1] || '';
+              if (!location) location = parts[2] || '';
+              break;
+            }
+
+            // Check for company indicator (l Company pattern)
+            const companyMatch = prevLine.match(/\bl\s+([A-Z][A-Za-zÀ-ÿ\s]+?)(?:\s*$)/);
+            if (companyMatch && !company) {
+              company = companyMatch[1].trim();
+            }
+
+            // If line looks like a position (not too long, has job keywords)
+            if (!position && prevLine.length > 5 && prevLine.length < 150 &&
+                !prevLine.match(/\d{4}/) && 
+                prevLine.match(/[A-Z]/)) {
+              position = prevLine;
+            }
+          }
+
+          // Extract description from following lines
+          let description = '';
+          let descLineCount = 0;
+          for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+            const descLine = lines[j];
+            
+            // Stop if we hit another date range or new section
+            if (descLine.match(/\d{4}\s*[-–—]\s*\d{4}/) || 
+                descLine.match(/^(?:EDUCATION|PROJET|CERTIFICATION|COMPETENCES)/i)) {
+              break;
+            }
+
+            // Add bullet points and descriptive text
+            if (descLine.match(/^[-•]/) || 
+                descLine.match(/Technologies|Conception|Développement|Création|Intégration|Implémentation/i)) {
+              description += descLine.replace(/^[-•]\s*/, '').trim() + ' ';
+              descLineCount++;
+            }
+
+            if (descLineCount >= 5) break; // Limit description length
+          }
+
+          const duration = typeof endYear === 'number'
+            ? `${endYear - startYear} years`
+            : `${new Date().getFullYear() - startYear} years`;
+
+          experiences.push({
+            position: position || 'Position Not Specified',
+            company: company || '',
+            location: location || '',
+            startDate: startYear.toString(),
+            endDate: endYear.toString(),
+            description: description.trim(),
+            duration,
+          });
+
+          logger.debug(`[EXPERIENCE] Extracted: ${position} at ${company} (${startYear} - ${endYear})`);
+          break;
+        }
+      }
+
+      i++;
+    }
+
+    logger.info(`[EXPERIENCE] Found ${experiences.length} experience entries`);
+    return experiences;
+  }
+
+  /**
+   * Extract education with advanced parsing
+   */
+  private extractEducationAdvanced(context: ExtractionContext): any[] {
+    logger.info('[ADVANCED] Extracting education');
+
+    const section = context.sections.get('education');
+    if (!section) {
+      logger.debug('[EDUCATION] No education section found');
+      return [];
+    }
+
+    const education: any[] = [];
+    const lines = section.content.split('\n').filter(l => l.trim());
+
+    const degreeKeywords = context.language.code === 'fr'
+      ? ['Ingénieur', 'Master', 'Licence', 'DUT', 'BTS', 'Diplôme', 'Doctorat', 'Bachelor', 'Technicien']
+      : ['Engineer', 'Master', 'Bachelor', 'Degree', 'Diploma', 'PhD', 'Doctorate', 'Associate', 'Certificate'];
+
+    const institutionKeywords = ['Université', 'University', 'École', 'School', 'Institut', 'Institute', 'Faculté', 'Faculty', 'College', 'ISTA'];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Skip section headers
+      if (line.match(/^(?:EDUCATION|FORMATION|ÉDUCATION)/i)) continue;
+
+      const hasDegree = degreeKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(line));
+      const hasInstitution = institutionKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(line));
+
+      if (hasDegree || hasInstitution) {
+        const dateMatch = line.match(/(\d{4})\s*[-–—]\s*(\d{4})/);
+        
+        let degree = '';
+        let institution = '';
+        let field = '';
+
+        if (line.includes('|')) {
+          const parts = line.split('|').map(p => p.trim());
+          degree = parts[0] || line;
+          institution = parts[1] || '';
+        } else {
+          const institutionMatch = line.match(new RegExp(`(${institutionKeywords.join('|')})[^\\d|]*`, 'i'));
+          if (institutionMatch) {
+            const instIndex = line.indexOf(institutionMatch[0]);
+            degree = line.substring(0, instIndex).trim();
+            institution = institutionMatch[0].trim();
+          } else {
+            degree = line;
+          }
+        }
+
+        education.push({
+          degree: degree.replace(/\d{4}\s*[-–—]\s*\d{4}/, '').trim(),
+          institution: institution.replace(/\d{4}\s*[-–—]\s*\d{4}/, '').trim(),
+          field_of_study: field || null,
+          start_date: dateMatch ? dateMatch[1] : null,
+          end_date: dateMatch ? dateMatch[2] : null,
+        });
+
+        logger.debug(`[EDUCATION] Found: ${degree} at ${institution}`);
+      }
+    }
+
+    return education;
+  }
+
+  /**
+   * Extract skills with categorization
+   */
+  private extractSkillsAdvanced(context: ExtractionContext): string[] {
+    logger.info('[ADVANCED] Extracting skills');
+
+    const section = context.sections.get('skills');
+    const fullText = context.lines.join('\n');
+    
+    const skillDatabase = [
+      // Programming Languages
+      'JavaScript', 'TypeScript', 'Python', 'Java', 'C\\+\\+', 'C#', 'PHP', 'Ruby', 'Go', 'Rust', 
+      'Kotlin', 'Swift', 'Scala', 'Dart', 'R', 'MATLAB', 'Perl', 'Objective-C',
+      
+      // Frontend Frameworks & Libraries
+      'React', 'Angular', 'Vue\\.js', 'Svelte', 'Next\\.js', 'Nuxt', 'Gatsby', 'Ember', 
+      'Backbone', 'jQuery', 'Redux', 'MobX', 'Vuex',
+      
+      // Backend Frameworks
+      'Node\\.js', 'Express', 'Django', 'Flask', 'FastAPI', 'Spring', 'Spring Boot', 
+      'Laravel', 'Symfony', 'ASP\\.NET', 'Rails', 'Ruby on Rails', 'Gin', 'Echo',
+      
+      // Databases
+      'MySQL', 'PostgreSQL', 'MongoDB', 'Redis', 'Elasticsearch', 'Firebase', 
+      'DynamoDB', 'Oracle', 'SQL Server', 'MariaDB', 'Cassandra', 'Neo4j', 
+      'SQLite', 'CouchDB', 'Hibernate', 'Sequelize', 'Mongoose', 'Doctrine', 
+      'TypeORM', 'Prisma', 'Knex',
+      
+      // Cloud & DevOps
+      'AWS', 'Azure', 'GCP', 'Google Cloud', 'Docker', 'Kubernetes', 'Jenkins', 
+      'GitLab CI', 'GitHub Actions', 'CircleCI', 'Travis CI', 'Terraform', 
+      'Ansible', 'Chef', 'Puppet', 'Vagrant',
+      
+      // Frontend Technologies
+      'HTML', 'HTML5', 'CSS', 'CSS3', 'SCSS', 'SASS', 'Less', 'Tailwind CSS', 
+      'Bootstrap', 'Material-UI', 'Ant Design', 'Chakra UI', 'Styled Components',
+      
+      // Mobile Development
+      'React Native', 'Flutter', 'Ionic', 'Xamarin', 'Swift', 'Kotlin', 
+      'Android', 'iOS', 'SwiftUI',
+      
+      // APIs & Protocols
+      'REST', 'RESTful', 'GraphQL', 'gRPC', 'WebSocket', 'SOAP', 'API',
+      
+      // Testing
+      'Jest', 'Mocha', 'Jasmine', 'Cypress', 'Selenium', 'JUnit', 'PyTest', 
+      'TestNG', 'Karma', 'Protractor',
+      
+      // Version Control & Tools
+      'Git', 'GitHub', 'GitLab', 'Bitbucket', 'SVN', 'Mercurial',
+      
+      // Project Management & Methodologies
+      'Agile', 'Scrum', 'Kanban', 'Jira', 'Trello', 'Asana', 'Confluence',
+      
+      // Other Technologies
+      'Microservices', 'Serverless', 'Lambda', 'CI/CD', 'Machine Learning', 
+      'Deep Learning', 'TensorFlow', 'PyTorch', 'NLP', 'Data Science', 
+      'Big Data', 'Hadoop', 'Spark', 'Kafka',
+      
+      // Design & Tools
+      'Figma', 'Sketch', 'Adobe XD', 'Photoshop', 'Illustrator', 'InVision',
+      
+      // French Keywords
+      'Développement', 'Programmation', 'Base de données', 'Gestion de projet',
+      'Méthodologie Agile', 'Intégration continue',
+    ];
+
+    const skills = new Set<string>();
+
+    // Extract from skills section
+    if (section) {
+      skillDatabase.forEach(skill => {
+        const regex = new RegExp(`\\b${skill}\\b`, 'i');
+        if (regex.test(section.content)) {
+          skills.add(skill.replace(/\\/g, ''));
+        }
+      });
+    }
+
+    // Extract from full text (for skills mentioned in experience/projects)
+    skillDatabase.forEach(skill => {
+      const regex = new RegExp(`\\b${skill}\\b`, 'i');
+      if (regex.test(fullText)) {
+        skills.add(skill.replace(/\\/g, ''));
+      }
+    });
+
+    const skillArray = Array.from(skills);
+    logger.info(`[SKILLS] Extracted ${skillArray.length} skills`);
+    
+    return skillArray;
+  }
+
+  /**
+   * Extract languages
+   */
+  private extractLanguagesAdvanced(context: ExtractionContext): string[] {
+    logger.info('[ADVANCED] Extracting languages');
+
+    // Try to find dedicated language section first
+    const section = context.sections.get('languages');
+    let searchText = section ? section.content : context.lines.join('\n');
+
+    // If no language section found, search entire document
+    if (!section) {
+      logger.debug('[LANGUAGES] No dedicated language section, searching full document');
+    }
+
+    const languageNames = {
+      en: ['English', 'French', 'Spanish', 'German', 'Arabic', 'Chinese', 'Japanese', 
+           'Portuguese', 'Italian', 'Dutch', 'Russian', 'Korean', 'Turkish', 'Hindi',
+           'Urdu', 'Bengali', 'Punjabi', 'Vietnamese', 'Polish', 'Ukrainian', 'Romanian'],
+      fr: ['Anglais', 'Français', 'Espagnol', 'Allemand', 'Arabe', 'Chinois', 'Japonais',
+           'Portugais', 'Italien', 'Néerlandais', 'Russe', 'Coréen', 'Turc', 'Hindi',
+           'Ourdou', 'Bengali', 'Pendjabi', 'Vietnamien', 'Polonais', 'Ukrainien', 'Roumain'],
+    };
+
+    const allLanguageNames = [...languageNames.en, ...languageNames.fr];
+    const languages = new Set<string>();
+
+    // Look for language proficiency patterns
+    const proficiencyPattern = /\b(English|French|Spanish|German|Arabic|Chinese|Japanese|Portuguese|Italian|Dutch|Russian|Korean|Turkish|Hindi|Anglais|Français|Espagnol|Allemand|Arabe|Chinois|Japonais|Portugais|Italien|Néerlandais|Russe|Coréen|Turc)\b/gi;
+    
+    let match;
+    while ((match = proficiencyPattern.exec(searchText)) !== null) {
+      const lang = match[1];
+      // Normalize to English name lowercase
+      const normalizedLang = lang.toLowerCase();
+      
+      // Map French to English
+      const langMap: Record<string, string> = {
+        'anglais': 'english',
+        'français': 'french',
+        'espagnol': 'spanish',
+        'allemand': 'german',
+        'arabe': 'arabic',
+        'chinois': 'chinese',
+        'japonais': 'japanese',
+        'portugais': 'portuguese',
+        'italien': 'italian',
+        'néerlandais': 'dutch',
+        'russe': 'russian',
+        'coréen': 'korean',
+        'turc': 'turkish',
+      };
+
+      const finalLang = langMap[normalizedLang] || normalizedLang;
+      
+      if (!languages.has(finalLang)) {
+        languages.add(finalLang);
+        logger.debug(`[LANGUAGES] Found: ${finalLang}`);
+      }
+    }
+
+    const languageArray = Array.from(languages);
+    logger.info(`[LANGUAGES] Found ${languageArray.length} languages`);
+    return languageArray;
+  }
+
+  /**
+   * Extract certifications
+   */
+  private extractCertificationsAdvanced(context: ExtractionContext): any[] {
+    logger.info('[ADVANCED] Extracting certifications');
+
+    const section = context.sections.get('certifications');
+    if (!section) {
+      logger.debug('[CERTIFICATIONS] No certification section found');
+      return [];
+    }
+
+    const certifications: any[] = [];
+    const lines = section.content.split('\n').filter(l => l.trim());
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      if (trimmed.match(/^(?:CERTIFICATIONS?|CERTIFICATS?)/i) || trimmed.length === 0) {
+        continue;
+      }
+
+      if (trimmed.match(/^[-•]/)) {
+        const cert = trimmed.replace(/^[-•]\s*/, '').trim();
+        
+        // Skip education entries
+        if (cert.match(/^(?:BACHELOR|MASTER|ENGINEER|INGÉNIEUR|LICENCE|DEGREE|DIPLOMA|UNIVERSITY|UNIVERSITÉ)/i)) {
+          continue;
+        }
+
+        if (cert.length > 3 && cert.length < 300) {
+          const dateMatch = cert.match(/(\d{4})/);
+          
+          certifications.push({
+            name: cert.replace(/\d{4}/, '').trim(),
+            issuer: '',
+            date: dateMatch ? dateMatch[1] : '',
+          });
+
+          logger.debug(`[CERTIFICATION] Found: ${cert}`);
+        }
+      }
+    }
+
+    return certifications;
+  }
+
+  /**
+   * Extract projects
+   */
+  private extractProjectsAdvanced(context: ExtractionContext): any[] {
+    logger.info('[ADVANCED] Extracting projects');
+
+    const section = context.sections.get('projects');
+    if (!section) {
+      logger.debug('[PROJECTS] No project section found');
+      return [];
+    }
+
+    const projects: any[] = [];
+    const lines = section.content.split('\n');
+
+    let currentProject = '';
+    let currentDescription = '';
+    let currentDate = '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      if (!trimmed || trimmed.match(/^(?:PROJETS?|PROJECTS?)/i)) continue;
+
+      // Check for date
+      const dateMatch = trimmed.match(/(\d{4})/);
+      if (dateMatch) {
+        if (currentProject) {
+          projects.push({
+            name: currentProject,
+            description: currentDescription.trim(),
+            date: currentDate,
+          });
+        }
+        
+        currentDate = dateMatch[1];
+        currentProject = trimmed.replace(/\d{4}/, '').replace(/[-•]/, '').trim();
+        currentDescription = '';
+      } else if (trimmed.match(/^[-•]/)) {
+        if (currentProject && currentDescription) {
+          projects.push({
+            name: currentProject,
+            description: currentDescription.trim(),
+            date: currentDate,
+          });
+          currentProject = '';
+          currentDescription = '';
+        }
+        currentDescription += trimmed.replace(/^[-•]\s*/, '') + ' ';
+      } else if (currentProject) {
+        currentDescription += trimmed + ' ';
+      }
+    }
+
+    if (currentProject) {
+      projects.push({
+        name: currentProject,
+        description: currentDescription.trim(),
+        date: currentDate,
+      });
+    }
+
+    logger.info(`[PROJECTS] Found ${projects.length} projects`);
+    return projects;
+  }
+
+  /**
+   * Calculate confidence score based on extraction quality
+   */
+  private calculateConfidenceScore(personalInfo: any, experience: any[], education: any[], skills: string[]): number {
+    let score = 0;
+
+    if (personalInfo.full_name && personalInfo.full_name !== 'Name Not Found') score += 0.2;
+    if (personalInfo.email) score += 0.15;
+    if (personalInfo.phone) score += 0.1;
+    if (experience.length > 0) score += 0.25;
+    if (education.length > 0) score += 0.15;
+    if (skills.length > 5) score += 0.15;
+
+    return Math.min(score, 0.95);
+  }
+
+  /**
+   * Estimate seniority with context awareness
+   */
+  private estimateSeniority(years: number, experience: any[], education: any[]): string {
+    const hasAdvancedDegree = education.some(e => 
+      e.degree?.match(/master|phd|doctorate|ingénieur/i)
+    );
+
+    const hasLeadRole = experience.some(e =>
+      e.position?.match(/lead|senior|principal|architect|chief|director/i)
+    );
+
+    if (years === 0 && education.length === 0) return 'Entry Level';
+    if (years < 2 && !hasAdvancedDegree) return 'Junior';
+    if (years < 5) return hasLeadRole ? 'Mid-Senior' : 'Mid Level';
+    if (years < 10) return hasLeadRole ? 'Senior' : 'Mid-Senior';
+    return 'Lead/Principal';
+  }
+
+  /**
+   * Detect industry from skills and experience
+   */
+  private detectIndustry(skills: string[], experience: any[]): string {
+    const skillText = skills.join(' ').toLowerCase();
+    const experienceText = experience.map(e => e.description).join(' ').toLowerCase();
+    const combined = skillText + ' ' + experienceText;
+
+    const industries = {
+      'Software Development': ['react', 'angular', 'node', 'python', 'java', 'developer', 'software'],
+      'Data Science': ['machine learning', 'data science', 'tensorflow', 'pytorch', 'nlp', 'analytics'],
+      'DevOps': ['docker', 'kubernetes', 'aws', 'azure', 'terraform', 'jenkins', 'ci/cd'],
+      'Mobile Development': ['react native', 'flutter', 'ios', 'android', 'mobile'],
+      'Web Development': ['html', 'css', 'javascript', 'frontend', 'backend', 'full stack'],
+      'Cloud Computing': ['aws', 'azure', 'gcp', 'cloud', 'serverless', 'lambda'],
+    };
+
+    let maxScore = 0;
+    let detectedIndustry = '';
+
+    Object.entries(industries).forEach(([industry, keywords]) => {
+      const score = keywords.filter(kw => combined.includes(kw)).length;
+      if (score > maxScore) {
+        maxScore = score;
+        detectedIndustry = industry;
+      }
+    });
+
+    return detectedIndustry;
+  }
+
+  /**
+   * Generate advanced summary
+   */
+  private generateAdvancedSummary(data: CVExtractionResult): string {
+    const parts: string[] = [];
+    const info = data.personal_info;
+
+    if (info.full_name && info.full_name !== 'Name Not Found') {
+      parts.push(`${info.full_name}`);
+    }
+
+    if (info.position) {
+      parts.push(`working as ${info.position}`);
+    } else if (data.metadata.seniority_level !== 'Entry Level') {
+      parts.push(`${data.metadata.seniority_level} professional`);
+    }
+
+    if (data.metadata.industry) {
+      parts.push(`in ${data.metadata.industry}`);
+    }
+
+    const summary = parts.join(' ');
+
+    const details: string[] = [];
+    
+    if (data.experience.length > 0) {
+      details.push(`${data.experience.length} professional experience(s)`);
+    }
+
+    if (data.education.length > 0) {
+      details.push(`${data.education.length} educational qualification(s)`);
+    }
+
+    if (data.skills.length > 0) {
+      const topSkills = data.skills.slice(0, 6).join(', ');
+      details.push(`Skilled in: ${topSkills}`);
+    }
+
+    if (data.languages.length > 0) {
+      details.push(`Languages: ${data.languages.join(', ')}`);
+    }
+
+    return `${summary}. ${details.join('. ')}.`;
+  }
+
+  /**
+   * Reprocess CV
    */
   async reprocessCV(cvId: string, llmConfig?: LLMConfiguration, llmEnabled: boolean = true): Promise<CVProcessingResult> {
     const cv = await CV.findByPk(cvId);
@@ -240,31 +1308,20 @@ class CVProcessorService {
       throw new Error('CV file not found in storage');
     }
 
-    // Download file from Google Drive
     const fileBuffer = await this.driveService.downloadFile(cv.googleDriveFileId);
-    
-    // Create temp file
     const tempPath = `/tmp/cv_${cv.id}_${Date.now()}.tmp`;
     fs.writeFileSync(tempPath, fileBuffer);
 
-    // Reset CV status
     await cv.update({
       status: CVStatus.PENDING,
       processingError: undefined,
     });
 
-    // Delete existing extracted data
     await CVExtractedData.destroy({ where: { cvId: cv.id } });
 
     return this.processCV(cv, tempPath, llmConfig, llmEnabled);
-
-    // Reprocess
-    return this.processCV(cv, tempPath, llmConfig);
   }
 
-  /**
-   * Calculate SHA-256 checksum of a file
-   */
   private async calculateChecksum(filePath: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('sha256');
@@ -276,9 +1333,6 @@ class CVProcessorService {
     });
   }
 
-  /**
-   * Get MIME type from document type
-   */
   private getMimeType(documentType: string): string {
     switch (documentType) {
       case 'PDF': return 'application/pdf';
@@ -288,9 +1342,6 @@ class CVProcessorService {
     }
   }
 
-  /**
-   * Heuristic to classify skills
-   */
   private isTechnicalSkill(skill: string): boolean {
     const technicalPatterns = [
       /javascript|typescript|python|java|c\+\+|ruby|go|rust|php|swift|kotlin/i,
@@ -327,15 +1378,10 @@ class CVProcessorService {
     return toolPatterns.some(pattern => pattern.test(skill));
   }
 
-  /**
-   * Smart validation for extracted text with document-type awareness
-   * Scanned PDFs (OCR) have different characteristics than native PDFs
-   */
   private validateExtractedText(
     text: string | undefined | null,
     documentType: string
   ): { isValid: boolean; reason?: string; quality: 'high' | 'medium' | 'low' } {
-    // Check if text exists
     if (!text) {
       return { isValid: false, reason: 'No text extracted', quality: 'low' };
     }
@@ -344,27 +1390,21 @@ class CVProcessorService {
     const wordCount = this.countMeaningfulWords(text);
     const lineCount = text.split('\n').length;
 
-    // Thresholds based on document type
-    const isScannedPDF = documentType === 'PDF' && lineCount > 20; // Scanned PDFs tend to have more lines due to OCR artifacts
+    const isScannedPDF = documentType === 'PDF' && lineCount > 20;
 
-    // Smart validation logic
     if (documentType === 'PDF') {
-      // For PDFs (including scanned): need at least 30 chars OR 5+ meaningful words
       if (textLength < 30 && wordCount < 5) {
-        return { isValid: false, reason: 'PDF text too short and lacks meaningful words', quality: 'low' };
+        return { isValid: false, reason: 'PDF text too short', quality: 'low' };
       }
-      // Scanned PDFs are more lenient
       if (isScannedPDF && textLength >= 20 && wordCount >= 3) {
         return { isValid: true, quality: 'medium' };
       }
     }
 
-    // For DOCX and other formats: standard thresholds
     if (textLength < 50 && wordCount < 8) {
-      return { isValid: false, reason: 'Extracted text is too short and lacks meaningful content', quality: 'low' };
+      return { isValid: false, reason: 'Text too short', quality: 'low' };
     }
 
-    // Quality assessment
     let quality: 'high' | 'medium' | 'low' = 'low';
     if (textLength >= 500 && wordCount >= 80) {
       quality = 'high';
@@ -375,507 +1415,45 @@ class CVProcessorService {
     return { isValid: true, quality };
   }
 
-  /**
-   * Generate a basic text summary from extraction result (no LLM)
-   */
-  private generateBasicSummary(extractionResult: CVExtractionResult): string {
-    const personalInfo = extractionResult.personal_info;
-    const skillsText = extractionResult.skills.slice(0, 5).join(', ');
-    const experienceCount = extractionResult.experience?.length || 0;
-    const educationCount = extractionResult.education?.length || 0;
-    
-    const parts = [];
-    
-    if (personalInfo.full_name) {
-      parts.push(`${personalInfo.full_name} is a professional`);
-    }
-    
-    if (extractionResult.metadata?.seniority_level && extractionResult.metadata.seniority_level !== 'Unknown') {
-      parts.push(`at ${extractionResult.metadata.seniority_level} level`);
-    }
-    
-    if (extractionResult.metadata?.industry) {
-      parts.push(`in ${extractionResult.metadata.industry}`);
-    }
-    
-    const summary = parts.join(' ') + '. ';
-    
-    const details = [];
-    if (experienceCount > 0) details.push(`${experienceCount} position(s) of experience`);
-    if (educationCount > 0) details.push(`${educationCount} education background(s)`);
-    if (skillsText) details.push(`Key skills: ${skillsText}`);
-    
-    return summary + details.join('. ') + '.';
-  }
-
-  /**
-   * Perform basic regex-based CV data extraction (fallback when LLM is disabled)
-   * Supports multiple languages: English, French, and mixed-language CVs
-   */
-  private performBasicExtraction(text: string): CVExtractionResult {
-    logger.info('[performBasicExtraction] Starting basic extraction');
-    
-    // Detect CV language - check for French keywords
-    const frenchKeywords = ['expérience', 'éducation', 'formation', 'competences', 'compétences', 'langue', 'langues', 'certification', 'certifications', 'projet', 'projets'];
-    const englishKeywords = ['experience', 'education', 'skills', 'certifications', 'projects', 'languages'];
-    
-    const textLower = text.toLowerCase();
-    const frenchScore = frenchKeywords.filter(kw => textLower.includes(kw)).length;
-    const englishScore = englishKeywords.filter(kw => textLower.includes(kw)).length;
-    const isFrenchCV = frenchScore > englishScore;
-    
-    logger.info(`[performBasicExtraction] Detected language preference - French: ${isFrenchCV}, French score: ${frenchScore}, English score: ${englishScore}`);
-    
-    // Section headers in both languages
-    const sectionHeaders = [
-      // English
-      'EXPERIENCE', 'EDUCATION', 'SKILLS', 'CERTIFICATIONS', 'PROJECTS', 'REFERENCES', 'SUMMARY', 'PROFILE', 'OBJECTIVE',
-      // French
-      'EXPÉRIENCE', 'EXPERIENCE', 'FORMATION', 'ÉDUCATION', 'COMPETENCES', 'COMPÉTENCES', 'CERTIFICATIONS', 'PROJETS', 'LANGUES', 'RÉSUMÉ', 'PROFIL', 'OBJECTIF'
-    ];
-    
-    // Extract personal info using regex patterns first (needed for name extraction)
-    const emailMatch = text.match(/[\w\.-]+@[\w\.-]+\.\w+/);
-    // Support international phone numbers (various formats)
-    const phoneMatch = text.match(/(\+?\d{1,3}[-.\\s]?)?(\(?\d{2,4}\)?[-.\\s]?\d{2,4}[-.\\s]?\d{2,4})/);
-    
-    let fullName = 'Name not extracted';
-    
-    // Strategy: Names appear near the top of CVs, usually before or with contact info
-    // But if contact info is at the very top, search the whole document
-    let searchText = text;
-    let contactPos = -1;
-    
-    if (emailMatch) {
-      contactPos = text.indexOf(emailMatch[0]);
-    } else if (phoneMatch) {
-      contactPos = text.indexOf(phoneMatch![0]);
-    }
-    
-    // If contact info found and not at the very top (after more than 50 chars), search before it
-    // Otherwise search entire document but prioritize top
-    if (contactPos > 50) {
-      searchText = text.substring(0, contactPos);
-    }
-    
-    const allLines = searchText.split('\n');
-    
-    // Phase 1: STRICT - look for perfect 2-3 word names in first 15 lines
-    for (let i = 0; i < Math.min(15, allLines.length); i++) {
-      const trimmed = allLines[i].trim();
-      
-      // Skip obvious non-names
-      if (!trimmed || trimmed.length < 3 || trimmed.length > 60 ||
-          sectionHeaders.includes(trimmed.toUpperCase()) || 
-          trimmed.includes('@') || trimmed.includes('http') || /^\d+/.test(trimmed) ||
-          trimmed === trimmed.toUpperCase()) continue;
-      
-      // Strict pattern: title case, 2-3 words, no numbers
-      const strictMatch = trimmed.match(/^([A-ZÀÂÄÆÉÈÊËÏÎÔÖŒÙ][a-zàâäæéèêëïîôöœù]+(?:[\s-][A-ZÀÂÄÆÉÈÊËÏÎÔÖŒÙ][a-zàâäæéèêëïîôöœù]+){1,2})$/);
-      
-      if (strictMatch && !/\d/.test(trimmed)) {
-        // Exclude obvious job titles
-        if (!trimmed.match(/\b(?:Engineer|Manager|Developer|Director|Designer|Architect|Analyst|Consultant|Specialist|Coordinator|Technic|Technician|Officer|Executive|Supervisor|Assistant|Intern|Lead|Chief|Head)\b/i)) {
-          fullName = trimmed;
-          logger.info(`[performBasicExtraction] Extracted name (strict): "${fullName}"`);
-          break;
-        }
-      }
-    }
-    
-    // Phase 2: MEDIUM - if not found, look for lines with lowercase letters and title case
-    if (fullName === 'Name not extracted') {
-      for (let i = 0; i < Math.min(25, allLines.length); i++) {
-        const trimmed = allLines[i].trim();
-        
-        // Skip empty, short, or very long lines
-        if (!trimmed || trimmed.length < 3 || trimmed.length > 100) continue;
-        
-        // Skip section headers, emails, etc.
-        if (sectionHeaders.includes(trimmed.toUpperCase()) || trimmed.includes('@') || trimmed.includes('http')) continue;
-        
-        // Skip all-caps or all-lowercase
-        if (trimmed === trimmed.toUpperCase() || trimmed === trimmed.toLowerCase()) continue;
-        
-        // Skip lines with too many numbers
-        if (/\d{3,}/.test(trimmed)) continue;
-        
-        // Line starts with capital, has some lowercase letters, and doesn't look like a job title
-        if (/^[A-ZÀÂÄÆÉÈÊËÏÎÔÖŒÙ]/.test(trimmed) && /[a-z]/.test(trimmed)) {
-          if (!trimmed.match(/\b(?:Engineer|Manager|Developer|Director|Designer|Architect|Analyst|Consultant|Specialist|Coordinator|Technic|Technician|Officer|Executive|Supervisor|Support|Lead|Chief|Head)\b/i)) {
-            fullName = trimmed;
-            logger.info(`[performBasicExtraction] Extracted name (medium): "${fullName}"`);
-            break;
-          }
-        }
-      }
-    }
-    
-    // Phase 3: LENIENT - as a last resort, take any line that looks like it could be a name
-    if (fullName === 'Name not extracted') {
-      for (let i = 0; i < Math.min(30, allLines.length); i++) {
-        const trimmed = allLines[i].trim();
-        
-        // Very basic checks: starts with letter, has at least one space or dash (for middle name/surname)
-        if (trimmed && /^[A-Za-zÀ-ÿ]/.test(trimmed) && /[\s-]/.test(trimmed) && 
-            trimmed.length >= 5 && trimmed.length <= 100 && 
-            !trimmed.includes('@') && !trimmed.includes('http') &&
-            !/\d{4}/.test(trimmed)) { // no year patterns
-          
-          // Skip obvious headers and sections
-          if (!sectionHeaders.includes(trimmed.toUpperCase()) && 
-              !trimmed.match(/^(SUMMARY|OBJECTIVE|ABOUT|EMAIL|PHONE|LINKEDIN)/i)) {
-            fullName = trimmed;
-            logger.info(`[performBasicExtraction] Extracted name (lenient): "${fullName}"`);
-            break;
-          }
-        }
-      }
-    }
-    
-    // Extract skills (look for common skill keywords) - pre-escaped
-    const skillKeywords = [
-      // Programming languages
-      'javascript', 'typescript', 'python', 'java', 'c\\+\\+', 'c#', 'php', 'ruby', 'go', 'rust', 'kotlin', 'swift', 'scala',
-      // Frontend frameworks
-      'react', 'angular', 'vue', 'svelte', 'next\\.js', 'nuxt', 'ember', 'backbone',
-      // Backend & frameworks
-      'node\\.js', 'express', 'django', 'flask', 'spring', 'laravel', 'symfony', 'asp\\.net', 'fastapi', 'rails',
-      // Databases
-      'sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch', 'firebase', 'dynamodb', 'oracle', 'cassandra',
-      // Cloud & DevOps
-      'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'ci/cd', 'terraform', 'ansible', 'gitlab',
-      // Frontend styling
-      'html', 'css', 'scss', 'tailwind', 'bootstrap', 'material design',
-      // APIs & protocols
-      'rest', 'graphql', 'api', 'soap', 'websocket', 'grpc',
-      // Tools & platforms
-      'agile', 'scrum', 'jira', 'git', 'gitlab', 'github', 'bitbucket', 'perforce',
-      // System & infrastructure
-      'linux', 'unix', 'windows', 'macos', 'bash', 'shell', 'powershell',
-      // Advanced concepts
-      'microservices', 'serverless', 'machine learning', 'ai', 'deep learning', 'nlp', 'data science',
-      // French technical keywords
-      'développement', 'programmation', 'base de données', 'framework', 'bibliothèque', 'gestion de projet'
-    ];
-    
-    const skills = skillKeywords.filter(skill => 
-      new RegExp(`\\b${skill}\\b`, 'i').test(text)
-    );
-
-    // Extract languages - both English and French language names
-    const languageKeywords = [
-      // English names
-      'english', 'french', 'spanish', 'german', 'arabic', 'chinese', 'japanese', 'portuguese', 'italian', 'dutch', 'russian', 'korean', 'turkish', 'vietnamese', 'thai', 'polish', 'greek', 'hebrew', 'hindi', 'bengali',
-      // French names (when CV is in French)
-      'anglais', 'français', 'espagnol', 'allemand', 'arabe', 'chinois', 'japonais', 'portugais', 'italien', 'néerlandais', 'hollandais', 'russe', 'coréen', 'turc', 'vietnamien', 'thaï', 'polonais', 'grec', 'hébreu', 'hindi', 'bengali'
-    ];
-    const languages = languageKeywords.filter(lang =>
-      new RegExp(`\\b${lang}\\b`, 'i').test(text)
-    );
-
-    // Extract experience (look for date ranges and job titles)
-    const experience = this.extractExperience(text);
-    
-    // Extract education (look for degrees and institutions)
-    const education = this.extractEducation(text);
-    
-    // Calculate total experience years
-    const totalExperienceYears = this.calculateExperienceYears(experience);
-    
-    // Extract certifications
-    const certifications = this.extractCertifications(text);
-    
-    // Extract location - look for "Location: CITY, COUNTRY" pattern
-    let location = '';
-    let city = '';
-    let country = '';
-    const locationMatch = text.match(/Location:\s*([A-Za-z\s]+?),\s*([A-Za-z\s]+?)(?:\n|$)/i);
-    if (locationMatch) {
-      city = locationMatch[1].trim();
-      country = locationMatch[2].trim();
-      location = `${city}, ${country}`;
-      logger.debug(`[performBasicExtraction] Found location: city="${city}", country="${country}"`);
-    }
-    
-    // Extract LinkedIn URL
-    let linkedinUrl = '';
-    const linkedinMatch = text.match(/linkedin\.com\/in\/([a-zA-Z0-9\-]+)/i);
-    if (linkedinMatch) {
-      linkedinUrl = `https://linkedin.com/in/${linkedinMatch[1]}`;
-      logger.debug(`[performBasicExtraction] Found LinkedIn: ${linkedinUrl}`);
-    }
-    
-    // Build extraction result
-    const result = {
-      confidence_score: 0.4,
-      photo_detected: false,
-      personal_info: {
-        full_name: fullName,
-        email: emailMatch ? emailMatch[0] : '',
-        phone: phoneMatch ? phoneMatch[0] : '',
-        location: location,
-      },
-      education: education,
-      experience: experience,
-      skills: skills,
-      languages: languages,
-      certifications: certifications,
-      internships: [],
-      metadata: {
-        total_experience_years: totalExperienceYears,
-        seniority_level: this.estimateSeniority(totalExperienceYears),
-        industry: '',
-        keywords: [...skills, ...languages],
-      },
-    };
-    
-    // DEBUG: Log the complete extraction result
-    logger.info('[performBasicExtraction] COMPLETE EXTRACTION RESULT:');
-    logger.info(JSON.stringify(result, null, 2));
-    
-    return result;
-  }
-
-  /**
-   * Extract experience/positions from CV text
-   * Works with both English and French CVs
-   */
-  private extractExperience(text: string): any[] {
-    const experience = [];
-    
-    // Look for experience section in both English and French
-    const experienceSection = text.match(/(?:EXPÉRIENCE|EXPERIENCE|EXP\.)(\s\S]*?)(?=EDUCATION|ACADÉMIQUE|FORMATION|ÉDUCATION|COMPÉTENCES|SKILLS|LANGUES|LANGUAGES|$)/i);
-    
-    if (!experienceSection) return experience;
-    
-    const sectionText = experienceSection[1];
-    
-    // Extract date ranges - support multiple formats:
-    // - "2004 - 2007"
-    // - "2004-2007"
-    // - "2004 – 2007" (en-dash)
-    // - "2004/2007"
-    // - "Jan 2004 - Dec 2007"
-    // - "2004 to 2007"
-    const datePatterns = [
-      /(\d{4})\s*[-–/]\s*(\d{4}|present|current|now|today)/gi,  // YYYY-YYYY or YYYY/YYYY format
-      /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{4})\s*[-–]\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{4})/gi // Month YYYY - Month YYYY
-    ];
-    
-    for (const datePattern of datePatterns) {
-      let dateMatch;
-      
-      while ((dateMatch = datePattern.exec(sectionText)) !== null) {
-        let startYear: number;
-        let endYear: number;
-        
-        // Handle different capture groups depending on which pattern matched
-        if (dateMatch[1] && /^\d{4}$/.test(dateMatch[1])) {
-          startYear = parseInt(dateMatch[1]);
-          endYear = dateMatch[2].toLowerCase() === 'present' || 
-                    dateMatch[2].toLowerCase() === 'current' ||
-                    dateMatch[2].toLowerCase() === 'now' ||
-                    dateMatch[2].toLowerCase() === 'today'
-            ? new Date().getFullYear() 
-            : parseInt(dateMatch[2]);
-        } else {
-          continue; // Skip if not a year
-        }
-        
-        // Extract job title near this date range - search backward from date
-        const contextStart = Math.max(0, dateMatch.index - 600);
-        const contextText = sectionText.substring(contextStart, dateMatch.index);
-        
-        // Split context by newlines and reverse to search backward
-        const lines = contextText.split('\n').reverse().filter(l => l.trim().length > 0);
-        
-        let jobTitle = 'Position not extracted';
-        let company = '';
-        
-        // Look for job title in pipe-separated format or plain job title
-        for (let i = 0; i < Math.min(10, lines.length); i++) {
-          const line = lines[i].trim();
-          
-          // Skip empty or very short lines
-          if (line.length < 2 || /^[\d\s,\-–/().,]*$/.test(line)) continue;
-          
-          // Skip section headers and markers
-          if (line.match(/^(?:PROFESSIONAL|EXPERIENCE|EXPÉRIENCE|TECHNICAL|PROJECTS|KEY|EDUCATION|SKILLS)/i)) continue;
-          
-          // Pattern: "JOB TITLE | COMPANY | LOCATION" or "JOB TITLE | COMPANY"
-          if (line.includes('|')) {
-            const parts = line.split('|').map(p => p.trim());
-            jobTitle = parts[0]; // First part is job title
-            if (parts.length > 1) company = parts[1]; // Second part is company
-            
-            if (jobTitle && jobTitle.length >= 3 && !jobTitle.match(/^[\d\s]+$/) && jobTitle.match(/[a-zA-Z]/)) {
-              logger.debug(`[extractExperience] Found: "${jobTitle}" at "${company}"`);
-              break;
-            }
-          } else if (line.match(/^[A-Z]/) && line.match(/[a-z]/i) && line.length >= 5 && line.length < 150) {
-            // No pipe - check if line looks like a job title
-            // Must have capital letter, letters, reasonable length
-            jobTitle = line;
-            logger.debug(`[extractExperience] Found position: "${jobTitle}"`);
-            break;
-          }
-        }
-        
-        experience.push({
-          position: jobTitle,
-          company: '',
-          startDate: `${startYear}`,
-          endDate: endYear.toString(),
-          description: '',
-          duration: `${endYear - startYear} years`,
-        });
-      }
-    }
-    
-    return experience;
-  }
-
-  /**
-   * Extract education from CV text
-   * Works with both English and French section headers
-   */
-  private extractEducation(text: string): any[] {
-    const education = [];
-    
-    // Look for education section in both English and French
-    const eduSection = text.match(/(?:EDUCATION|ÉDUCATION|FORMATION|ACADÉMIQUE)[\s\S]*?(?=CERTIFICATIONS|SKILLS|COMPÉTENCES|EXPERIENCE|EXPÉRIENCE|$)/i);
-    
-    if (!eduSection) return education;
-    
-    const sectionText = eduSection[0];
-    const lines = sectionText.split('\n').filter(l => l.trim().length > 0);
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      
-      // Skip section headers
-      if (trimmed.match(/^(EDUCATION|ÉDUCATION|FORMATION|ACADÉMIQUE|CERTIFICATIONS)/i)) continue;
-      
-      // Pattern: DEGREE INSTITUTION | YEAR - YEAR
-      // "COMPUTER ENGINEERING STATE ENGINEER Université Privée de Fès | 2022 - 2024"
-      // "BACHELOR IN MATHEMATICAL AND COMPUTER SCIENCES Faculté dhar el mahraz | 2016 - 2020"
-      const degreeMatch = trimmed.match(/^([A-Z][^|]*?)[\s]+(Université|University|Faculty|Faculté|École|School|Institut|Institute|ISTA)[^|]*?\s*\|?\s*(\d{4})?\s*[-–]?\s*(\d{4})?/i);
-      
-      if (degreeMatch) {
-        const [, degree, , startYear, endYear] = degreeMatch;
-        const institutionMatch = trimmed.match(/(Université|University|Faculty|Faculté|École|School|Institut|Institute|ISTA)[^|]*/);
-        const institution = institutionMatch ? institutionMatch[0].trim() : '';
-        
-        education.push({
-          degree: degree.trim(),
-          institution: institution,
-          field_of_study: null,
-          start_date: startYear || null,
-          end_date: endYear || null,
-        });
-        logger.debug(`[extractEducation] Found: ${degree.trim()} at ${institution}`);
-      }
-    }
-    
-    return education;
-  }
-
-  /**
-   * Extract certifications from CV text
-   * Works with both English and French section headers
-   */
-  private extractCertifications(text: string): any[] {
-    const certifications = [];
-    
-    // Look for certifications section in both English and French
-    // Focus only on true certifications, not education
-    const certSection = text.match(/(?:CERTIFICATIONS?)([\s\S]*?)(?=LANGUAGES|LANGUES|ADDITIONAL|SKILLS|COMPÉTENCES|EXPERIENCE|EXPÉRIENCE|EDUCATION|FORMATION|$)/i);
-    
-    if (!certSection) return certifications;
-    
-    const sectionText = certSection[1];
-    
-    // Split by newlines and filter out empty lines
-    const lines = sectionText.split('\n').filter(line => line.trim().length > 0);
-    
-    // Take lines that start with bullet points and are certifications (not education)
-    for (const line of lines) {
-      const trimmed = line.trim();
-      
-      // Skip header or empty
-      if (trimmed.match(/^CERTIFICATIONS?$/i) || trimmed.length === 0) continue;
-      
-      // Look for bullet points
-      if (trimmed.match(/^[-•]/)) {
-        const cert = trimmed.replace(/^[-•]\s*/, '');
-        
-        // Skip if it looks like education (degree keywords)
-        if (cert.match(/^(BACHELOR|MASTER|ENGINEER|TECHNICIAN|DEGREE|DIPLOMA|ENGINEER|UNIVERSITY)/i)) continue;
-        
-        if (cert.length > 0 && cert.length < 200) {
-          certifications.push({
-            name: cert,
-            issuer: '',
-            date: '',
-          });
-          logger.debug(`[extractCertifications] Found: ${cert}`);
-        }
-      }
-    }
-    
-    return certifications;
-  }
-
-  /**
-   * Calculate total experience years from experience array
-   */
   private calculateExperienceYears(experience: any[]): number {
     if (!experience || experience.length === 0) return 0;
     
     let totalYears = 0;
+    const currentYear = new Date().getFullYear();
+
     experience.forEach(exp => {
       try {
         const start = parseInt(exp.startDate);
-        const end = parseInt(exp.endDate);
-        if (!isNaN(start) && !isNaN(end)) {
+        let end: number;
+
+        if (exp.endDate === 'Present' || exp.endDate.toLowerCase() === 'present') {
+          end = currentYear;
+        } else {
+          end = parseInt(exp.endDate);
+        }
+
+        if (!isNaN(start) && !isNaN(end) && end >= start) {
           totalYears += (end - start);
         }
       } catch (e) {
-        // Skip if parsing fails
+        logger.debug(`[EXPERIENCE] Failed to parse dates for experience: ${e}`);
       }
     });
     
     return totalYears;
   }
 
-  /**
-   * Estimate seniority level based on experience years
-   */
-  private estimateSeniority(years: number): string {
-    if (years === 0) return 'Entry Level';
-    if (years < 2) return 'Junior';
-    if (years < 5) return 'Mid Level';
-    if (years < 10) return 'Senior';
-    return 'Lead/Principal';
-  }
-
-  /**
-   * Count meaningful words (filters out common whitespace/formatting artifacts)
-   */
   private countMeaningfulWords(text: string): number {
-    // Remove extra whitespace and split
     const words = text
       .replace(/\s+/g, ' ')
       .trim()
       .split(' ')
-      .filter(word => word.length > 2); // Only count words with 3+ characters
+      .filter(word => word.length > 2);
 
     return words.length;
   }
 }
 
-// Singleton instance
 let cvProcessorService: CVProcessorService | null = null;
 
 export function getCVProcessorService(): CVProcessorService {

@@ -159,14 +159,28 @@ export class ApiCVService implements ICVService {
       }
     }
     
-    // Extract skills - backend sends flat array of strings
-    const skills = Array.isArray(extractedData.skills) 
-      ? extractedData.skills.map((skill: any) => ({
+    // Extract skills - backend sends nested object with technical/soft/tools or flat array
+    let skills: any[] = [];
+    if (extractedData.skills) {
+      if (typeof extractedData.skills === 'object' && !Array.isArray(extractedData.skills)) {
+        // Nested structure: { technical: [], soft: [], tools: [] }
+        const technical = extractedData.skills.technical || [];
+        const soft = extractedData.skills.soft || [];
+        const tools = extractedData.skills.tools || [];
+        skills = [...technical, ...soft, ...tools].map((skill: any) => ({
           name: typeof skill === 'string' ? skill.trim() : skill.name || skill,
           level: 'Intermédiaire',
           category: 'Technical',
-        }))
-      : [];
+        }));
+      } else if (Array.isArray(extractedData.skills)) {
+        // Flat array
+        skills = extractedData.skills.map((skill: any) => ({
+          name: typeof skill === 'string' ? skill.trim() : skill.name || skill,
+          level: 'Intermédiaire',
+          category: 'Technical',
+        }));
+      }
+    }
 
     // Extract total experience years - backend provides this field
     const totalExperienceYears = extractedData.totalExperienceYears || 0;
@@ -289,6 +303,12 @@ export class ApiCVService implements ICVService {
     const extractedData = cv.metadata?.rawData?.extractedData || {};
     const rawData = cv.metadata?.rawData || {};
     
+    // Get position from personal info (backend adds it there)
+    const position = cv.personalInfo?.position || 
+                     cv.professional?.position || 
+                     extractedData.personalInfo?.position || 
+                     'Professional';
+    
     // Get languages - try multiple sources
     const languages = extractedData.languages || cv.languages || [];
     
@@ -332,7 +352,7 @@ export class ApiCVService implements ICVService {
       id: cv.id,
       photo: photo,
       fullName: cv.personalInfo.fullName,
-      position: cv.professional.position,
+      position: position,
       location: location,
       city: cv.personalInfo.city,
       country: cv.personalInfo.country,

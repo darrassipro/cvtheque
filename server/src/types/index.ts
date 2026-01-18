@@ -43,6 +43,7 @@ export interface CVExtractionInput {
 
 export interface PersonalInfo {
   full_name: string | null;
+  position: string | null;
   email: string | null;
   phone: string | null;
   location: string | null;
@@ -98,7 +99,7 @@ export interface CVExtractionResult {
   education: EducationEntry[];
   experience: ExperienceEntry[];
   skills: string[];
-  languages: LanguageEntry[];
+  languages: string[];
   certifications: CertificationEntry[];
   internships: InternshipEntry[];
   metadata: CVMetadata;

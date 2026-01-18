@@ -113,13 +113,7 @@ export default function ProfileDetailsScreen() {
     (extracted.skills && extracted.skills.length > 0)
   );
 
-  // Robust data extraction with fallbacks
-  const personalInfo = extracted?.personalInfo || {};
-  const fullName = personalInfo.fullName || cv.originalFileName?.replace(/\.[^/.]+$/, '') || 'Unknown';
-  const email = personalInfo.email || '';
-  const phone = personalInfo.phone || '';
-  const location = personalInfo.address || [personalInfo.city, personalInfo.country].filter(Boolean).join(', ') || '';
-  
+  // Robust data extraction with fallbacks - declare arrays first
   const experience = extracted?.experience || [];
   const education = extracted?.education || [];
   const skills = extracted?.skills || [];
@@ -131,7 +125,14 @@ export default function ProfileDetailsScreen() {
   const industry = extracted?.industry || '';
   const keywords = extracted?.keywords || [];
   
-  const currentPosition = experience[0]?.jobTitle || experience[0]?.position || 'Professional';
+  // Then extract personal info with fallbacks
+  const personalInfo = extracted?.personalInfo || {};
+  const fullName = personalInfo.fullName || cv.originalFileName?.replace(/\.[^/.]+$/, '') || 'Unknown';
+  const position = personalInfo.position || experience[0]?.jobTitle || experience[0]?.position || 'Professional';
+  const email = personalInfo.email || '';
+  const phone = personalInfo.phone || '';
+  const location = personalInfo.address || [personalInfo.city, personalInfo.country].filter(Boolean).join(', ') || personalInfo.location || '';
+  
   const isProcessing = cv.status === 'PROCESSING' || cv.status === 'PENDING';
   const isFailed = cv.status === 'FAILED';
 
@@ -176,7 +177,7 @@ export default function ProfileDetailsScreen() {
           {/* Position */}
           <View className="bg-white bg-opacity-20 px-4 py-2 rounded-full mb-4">
             <Text className="text-lg font-semibold text-white text-center">
-              {currentPosition}
+              {position}
             </Text>
           </View>
 
