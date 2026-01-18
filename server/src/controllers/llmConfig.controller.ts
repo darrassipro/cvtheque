@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { LLMConfiguration, LLMProvider } from '../models/index.js';
+import { Op } from 'sequelize';
 import { AuthenticatedRequest } from '../types/index.js';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler.js';
 import { logAudit, logSettingsChange } from '../middleware/audit.js';
@@ -21,10 +22,16 @@ export async function listLLMConfigs(req: AuthenticatedRequest, res: Response): 
   });
 
   // Add availability info
-  const configsWithStatus = configs.map(config => ({
-    ...config.toJSON(),
-    isAvailable: llmService.isProviderAvailable(config.provider),
-  }));
+  const configsWithStatus = configs.map(config => {
+    const json = config.toJSON();
+    const hasApiKey = Boolean(json.apiKey && json.apiKey.length > 0);
+    const { apiKey, ...rest } = json as any;
+    return {
+      ...rest,
+      hasApiKey,
+      isAvailable: hasApiKey && json.isActive === true,
+    };
+  });
 
   res.json({
     success: true,
@@ -36,10 +43,17 @@ export async function listLLMConfigs(req: AuthenticatedRequest, res: Response): 
  * Get available LLM providers
  */
 export async function getAvailableProviders(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const providers = Object.values(LLMProvider).map(provider => ({
-    provider,
-    isAvailable: llmService.isProviderAvailable(provider),
-  }));
+  const providers = await Promise.all(
+    Object.values(LLMProvider).map(async provider => {
+      const cfg = await LLMConfiguration.findOne({
+        where: {
+          provider,
+          isActive: true,
+        },
+      });
+      return { provider, isAvailable: Boolean(cfg?.apiKey && cfg.apiKey.length > 0) };
+    })
+  );
 
   res.json({
     success: true,
@@ -61,11 +75,15 @@ export async function getLLMConfig(req: AuthenticatedRequest, res: Response): Pr
     throw new NotFoundError('LLM Configuration');
   }
 
+  const json = config.toJSON() as any;
+  const hasApiKey = Boolean(json.apiKey && json.apiKey.length > 0);
+  const { apiKey, ...rest } = json;
   res.json({
     success: true,
     data: {
-      ...config.toJSON(),
-      isAvailable: llmService.isProviderAvailable(config.provider),
+      ...rest,
+      hasApiKey,
+      isAvailable: hasApiKey && json.isActive === true,
     },
   });
 }
@@ -80,8 +98,8 @@ export async function createLLMConfig(req: AuthenticatedRequest, res: Response):
     model,
     isDefault,
     isActive,
+    apiKey: rawApiKey,
     temperature,
-    maxTokens,
     topP,
     extractionStrictness,
     extractionPrompt,
@@ -94,9 +112,20 @@ export async function createLLMConfig(req: AuthenticatedRequest, res: Response):
     throw new ConflictError('A configuration with this name already exists');
   }
 
-  // Validate provider is available
-  if (!llmService.isProviderAvailable(provider)) {
-    throw new ValidationError(`Provider ${provider} is not configured or unavailable`);
+  // Require apiKey for DB-based credentials
+  const apiKey = (rawApiKey ?? req.body.api_key ?? req.body.key) as string | undefined;
+  
+  console.log('=== LLM Config CREATE Debug ===');
+  console.log('Full body:', JSON.stringify(req.body, null, 2));
+  console.log('Body keys:', Object.keys(req.body));
+  console.log('apiKey variants - rawApiKey:', rawApiKey, 'api_key:', req.body.api_key, 'key:', req.body.key);
+  console.log('Final apiKey:', apiKey ? `[${apiKey.length} chars]` : 'undefined');
+  console.log('==============================');
+  
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    console.error('VALIDATION ERROR: apiKey is required for LLM configuration');
+    console.error('Received body:', req.body);
+    throw new ValidationError('apiKey is required for LLM configuration');
   }
 
   // If setting as default, unset other defaults
@@ -113,8 +142,8 @@ export async function createLLMConfig(req: AuthenticatedRequest, res: Response):
     model,
     isDefault: isDefault || false,
     isActive: isActive !== false,
+    apiKey,
     temperature: temperature ?? 0.1,
-    maxTokens: maxTokens ?? 4096,
     topP: topP ?? 0.95,
     extractionStrictness: extractionStrictness || 'strict',
     extractionPrompt,
@@ -131,7 +160,11 @@ export async function createLLMConfig(req: AuthenticatedRequest, res: Response):
   res.status(201).json({
     success: true,
     message: 'LLM configuration created successfully',
-    data: config,
+    data: {
+      ...config.toJSON(),
+      apiKey: undefined,
+      hasApiKey: true,
+    },
   });
 }
 
@@ -145,8 +178,8 @@ export async function updateLLMConfig(req: AuthenticatedRequest, res: Response):
     model,
     isDefault,
     isActive,
+    apiKey: rawApiKey,
     temperature,
-    maxTokens,
     topP,
     extractionStrictness,
     extractionPrompt,
@@ -177,30 +210,46 @@ export async function updateLLMConfig(req: AuthenticatedRequest, res: Response):
   // Track changes for audit
   const oldValues = config.toJSON();
 
-  await config.update({
+  const updatePayload: any = {
     ...(name && { name }),
     ...(model && { model }),
     ...(isDefault !== undefined && { isDefault }),
     ...(isActive !== undefined && { isActive }),
     ...(temperature !== undefined && { temperature }),
-    ...(maxTokens !== undefined && { maxTokens }),
     ...(topP !== undefined && { topP }),
     ...(extractionStrictness && { extractionStrictness }),
     ...(extractionPrompt !== undefined && { extractionPrompt }),
     ...(summaryPrompt !== undefined && { summaryPrompt }),
-  });
+  };
+
+  const apiKey = (rawApiKey ?? req.body.api_key ?? req.body.key) as string | undefined;
+  if (apiKey !== undefined) {
+    if (typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+      throw new ValidationError('apiKey must be a non-empty string when provided');
+    }
+    updatePayload.apiKey = apiKey;
+  }
+
+  await config.update(updatePayload);
 
   // Update default provider if this is the new default
   if (config.isDefault) {
     llmService.setDefaultProvider(config.provider);
   }
 
-  await logSettingsChange(req, `llm_config_${config.id}`, oldValues, config.toJSON());
+  const newValues = config.toJSON() as any;
+  if (oldValues.apiKey) oldValues.apiKey = '***';
+  if (newValues.apiKey) newValues.apiKey = '***';
+  await logSettingsChange(req, `llm_config_${config.id}`, oldValues, newValues);
 
   res.json({
     success: true,
     message: 'LLM configuration updated successfully',
-    data: config,
+    data: {
+      ...config.toJSON(),
+      apiKey: undefined,
+      hasApiKey: Boolean(config.apiKey),
+    },
   });
 }
 
@@ -279,13 +328,13 @@ export async function testLLMConfig(req: AuthenticatedRequest, res: Response): P
   if (!config) {
     throw new NotFoundError('LLM Configuration');
   }
-
-  if (!llmService.isProviderAvailable(config.provider)) {
+  
+  if (!config.apiKey) {
     res.json({
       success: false,
       data: {
         available: false,
-        error: `Provider ${config.provider} is not configured`,
+        error: 'No apiKey set for this configuration',
       },
     });
     return;

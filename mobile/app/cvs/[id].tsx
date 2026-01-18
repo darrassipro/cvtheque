@@ -226,6 +226,29 @@ export default function CVDetailsScreen() {
             </View>
           )}
 
+          {/* Experience Summary */}
+          {(extracted.totalExperienceYears > 0 || extracted.seniorityLevel) && (
+            <View className="bg-white p-6 rounded-lg mb-4 shadow-sm">
+              <Text className="text-xl font-bold text-gray-900 mb-4">
+                Professional Summary
+              </Text>
+              {extracted.totalExperienceYears > 0 && (
+                <InfoRow
+                  icon={Briefcase}
+                  label="Total Experience"
+                  value={`${extracted.totalExperienceYears} year${extracted.totalExperienceYears !== 1 ? 's' : ''}`}
+                />
+              )}
+              {extracted.seniorityLevel && (
+                <InfoRow
+                  icon={Award}
+                  label="Seniority Level"
+                  value={extracted.seniorityLevel}
+                />
+              )}
+            </View>
+          )}
+
           {/* Skills */}
           {extracted.skills && extracted.skills.length > 0 && (
             <View className="bg-white p-6 rounded-lg mb-4 shadow-sm">

@@ -1,4 +1,3 @@
-import { config } from '../../config/index.js';
 import { LLMConfiguration, LLMProvider } from '../../models/index.js';
 import { CVExtractionResponse, LLMRequest, LLMResponse } from '../../types/index.js';
 import { BaseLLMProvider, type ILLMProvider } from './base.js';
@@ -16,38 +15,22 @@ export * from './prompts.js';
  */
 class LLMService {
   private providers: Map<LLMProvider, ILLMProvider> = new Map();
-  private defaultProvider: LLMProvider;
+  private defaultProvider: LLMProvider | null = null;
 
   constructor() {
-    this.defaultProvider = this.mapConfigProvider(config.llm.defaultProvider);
     this.initializeProviders();
-  }
-
-  private mapConfigProvider(provider: string): LLMProvider {
-    switch (provider.toLowerCase()) {
-      case 'gemini': return LLMProvider.GEMINI;
-      case 'openai': return LLMProvider.OPENAI;
-      case 'grok': return LLMProvider.GROK;
-      default: return LLMProvider.GEMINI;
-    }
   }
 
   private initializeProviders(): void {
     // Initialize all available providers
     const gemini = getGeminiProvider();
-    if (gemini.isAvailable()) {
-      this.providers.set(LLMProvider.GEMINI, gemini);
-    }
+    this.providers.set(LLMProvider.GEMINI, gemini);
 
     const openai = getOpenAIProvider();
-    if (openai.isAvailable()) {
-      this.providers.set(LLMProvider.OPENAI, openai);
-    }
+    this.providers.set(LLMProvider.OPENAI, openai);
 
     const grok = getGrokProvider();
-    if (grok.isAvailable()) {
-      this.providers.set(LLMProvider.GROK, grok);
-    }
+    this.providers.set(LLMProvider.GROK, grok);
 
     logger.info(`LLM Service initialized with providers: ${Array.from(this.providers.keys()).join(', ')}`);
   }
@@ -56,7 +39,7 @@ class LLMService {
    * Get a specific provider
    */
   getProvider(provider?: LLMProvider): ILLMProvider {
-    const targetProvider = provider || this.defaultProvider;
+    const targetProvider = provider || this.defaultProvider || LLMProvider.GEMINI;
     const llmProvider = this.providers.get(targetProvider);
     
     if (!llmProvider) {
@@ -83,7 +66,7 @@ class LLMService {
    * Check if a specific provider is available
    */
   isProviderAvailable(provider: LLMProvider): boolean {
-    return this.providers.has(provider) && this.providers.get(provider)!.isAvailable();
+    return this.providers.has(provider);
   }
 
   /**
@@ -93,20 +76,30 @@ class LLMService {
     request: LLMRequest, 
     llmConfig?: LLMConfiguration
   ): Promise<LLMResponse> {
-    const provider = llmConfig 
-      ? this.getProvider(llmConfig.provider)
-      : this.getProvider();
+    let config = llmConfig;
+    if (!config) {
+      config = await LLMConfiguration.findOne({ where: { isDefault: true, isActive: true } }) ?? undefined as any;
+      if (!config) {
+        throw new Error('No default LLM configuration found');
+      }
+    }
+
+    const provider = this.getProvider(config.provider);
 
     // Apply model from config if available
-    if (llmConfig?.model && 'setModel' in provider) {
-      (provider as any).setModel(llmConfig.model);
+    if (config?.model && 'setModel' in provider) {
+      (provider as any).setModel(config.model);
+    }
+
+    if ('configure' in provider && config.apiKey) {
+      (provider as any).configure(config.apiKey);
     }
 
     return provider.generateCompletion({
       ...request,
-      temperature: request.temperature ?? llmConfig?.temperature,
-      maxTokens: request.maxTokens ?? llmConfig?.maxTokens,
-      topP: request.topP ?? llmConfig?.topP,
+      temperature: request.temperature ?? config?.temperature,
+      maxTokens: request.maxTokens,
+      topP: request.topP ?? config?.topP,
     });
   }
 
@@ -117,21 +110,31 @@ class LLMService {
     cvText: string, 
     llmConfig?: LLMConfiguration
   ): Promise<{ result: CVExtractionResponse; provider: string; model: string }> {
-    const provider = llmConfig 
-      ? this.getProvider(llmConfig.provider)
-      : this.getProvider();
-
-    // Apply model from config if available
-    if (llmConfig?.model && 'setModel' in provider) {
-      (provider as any).setModel(llmConfig.model);
+    let config = llmConfig;
+    if (!config) {
+      config = await LLMConfiguration.findOne({ where: { isDefault: true, isActive: true } }) ?? undefined as any;
+      if (!config) {
+        throw new Error('No default LLM configuration found');
+      }
     }
 
-    const result = await provider.extractCVData(cvText, llmConfig);
+    const provider = this.getProvider(config.provider);
+
+    // Apply model from config if available
+    if (config?.model && 'setModel' in provider) {
+      (provider as any).setModel(config.model);
+    }
+
+    if ('configure' in provider && config.apiKey) {
+      (provider as any).configure(config.apiKey);
+    }
+
+    const result = await provider.extractCVData(cvText, config);
     
     return {
       result,
       provider: provider.provider,
-      model: llmConfig?.model || 'default',
+      model: config?.model || 'default',
     };
   }
 
@@ -142,24 +145,31 @@ class LLMService {
     extractedData: object, 
     llmConfig?: LLMConfiguration
   ): Promise<string> {
-    const provider = llmConfig 
-      ? this.getProvider(llmConfig.provider)
-      : this.getProvider();
-
-    if (llmConfig?.model && 'setModel' in provider) {
-      (provider as any).setModel(llmConfig.model);
+    let config = llmConfig;
+    if (!config) {
+      config = await LLMConfiguration.findOne({ where: { isDefault: true, isActive: true } }) ?? undefined as any;
+      if (!config) {
+        throw new Error('No default LLM configuration found');
+      }
     }
 
-    return provider.generateSummary(extractedData, llmConfig);
+    const provider = this.getProvider(config.provider);
+
+    if (config?.model && 'setModel' in provider) {
+      (provider as any).setModel(config.model);
+    }
+
+    if ('configure' in provider && config.apiKey) {
+      (provider as any).configure(config.apiKey);
+    }
+
+    return provider.generateSummary(extractedData, config);
   }
 
   /**
    * Set the default provider
    */
   setDefaultProvider(provider: LLMProvider): void {
-    if (!this.isProviderAvailable(provider)) {
-      throw new Error(`Provider ${provider} is not available`);
-    }
     this.defaultProvider = provider;
     logger.info(`Default LLM provider set to: ${provider}`);
   }
@@ -168,7 +178,10 @@ class LLMService {
    * Get the current default provider
    */
   getDefaultProvider(): LLMProvider {
-    return this.defaultProvider;
+    if (this.defaultProvider) return this.defaultProvider;
+    // Fallback to DB default config's provider if available
+    // Note: controllers fetch asynchronously when needed; here fallback statically
+    return LLMProvider.GEMINI;
   }
 }
 

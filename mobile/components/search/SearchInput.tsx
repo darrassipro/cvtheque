@@ -31,14 +31,14 @@ export function SearchInput({
   placeholder = 'Rechercher...'
 }: SearchInputProps) {
   return (
-    <View className="flex-1 flex-row items-center bg-white rounded-xl px-4 py-3 gap-3">
-      <Search size={20} color="#6B7280" />
+    <View className="flex-1 flex-row items-center bg-white border-2 border-slate-200 rounded-xl px-4 py-3 gap-3 shadow-sm">
+      <Search size={20} color="#1E3A8A" />
       <TextInput
-        className="flex-1 text-base text-gray-900"
+        className="flex-1 text-base text-slate-900 font-medium"
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor="#94A3B8"
       />
     </View>
   );

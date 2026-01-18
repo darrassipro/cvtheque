@@ -27,13 +27,13 @@ export interface FilterButtonProps {
 export function FilterButton({ onPress, count = 0 }: FilterButtonProps) {
   return (
     <TouchableOpacity
-      className="w-12 h-12 bg-cyan-500 rounded-xl items-center justify-center"
+      className="w-12 h-12 bg-orange-500 rounded-xl items-center justify-center shadow-md"
       onPress={onPress}
       activeOpacity={0.8}
     >
       <SlidersHorizontal size={24} color="#fff" />
       {count > 0 && (
-        <View className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full min-w-5 h-5 items-center justify-center px-1">
+        <View className="absolute -top-1.5 -right-1.5 bg-amber-500 rounded-full min-w-5 h-5 items-center justify-center px-1 border-2 border-white">
           <Text className="text-white text-xs font-bold">{count}</Text>
         </View>
       )}

@@ -27,12 +27,12 @@ export interface FilterChipProps {
 export function FilterChip({ filter, onRemove }: FilterChipProps) {
   return (
     <TouchableOpacity
-      className="flex-row items-center bg-gray-200 py-1.5 pl-3 pr-2 rounded-2xl gap-1.5"
+      className="flex-row items-center bg-slate-100 border border-slate-200 py-1.5 pl-3 pr-2 rounded-full gap-1.5"
       onPress={() => onRemove(filter.id)}
       activeOpacity={0.8}
     >
-      <Text className="text-xs text-gray-900 font-semibold">{filter.value}</Text>
-      <X size={14} color="#111827" />
+      <Text className="text-xs text-slate-700 font-semibold">{filter.value}</Text>
+      <X size={14} color="#64748B" />
     </TouchableOpacity>
   );
 }

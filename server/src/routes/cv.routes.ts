@@ -137,6 +137,32 @@ router.get(
 
 /**
  * @swagger
+ * /api/cvs/{id}/extracted-data:
+ *   get:
+ *     summary: Get CV extracted data by ID
+ *     tags: [CVs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: CV extracted data
+ *       404:
+ *         description: CV not found
+ */
+router.get(
+  '/:id/extracted-data',
+  validate({ params: cvSchemas.params }),
+  asyncHandler(cvController.getCVExtractedData)
+);
+
+/**
+ * @swagger
  * /api/cvs/{id}/status:
  *   get:
  *     summary: Get CV processing status

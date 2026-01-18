@@ -88,7 +88,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
             {/* Type de Contrat */}
             <View className="mb-5">
               <View className="flex-row items-center gap-2 mb-3">
-                <Briefcase size={18} color="#06B6D4" />
+                <Briefcase size={18} color="#F97316" />
                 <Text className="text-base font-semibold text-gray-900">Type de contrat</Text>
               </View>
               <View className="flex-row flex-wrap gap-2">
@@ -98,7 +98,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
                     onPress={() => toggleContractType(type)}
                     className={`px-4 py-2.5 rounded-xl border-2 ${
                       contractTypes.includes(type)
-                        ? 'bg-cyan-500 border-cyan-500'
+                        ? 'bg-orange-500 border-orange-500'
                         : 'bg-white border-gray-200'
                     }`}
                   >
@@ -117,7 +117,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
             {/* Mode de Travail */}
             <View className="mb-5">
               <View className="flex-row items-center gap-2 mb-3">
-                <Home size={18} color="#06B6D4" />
+                <Home size={18} color="#F97316" />
                 <Text className="text-base font-semibold text-gray-900">Mode de travail</Text>
               </View>
               <View className="flex-row flex-wrap gap-2">
@@ -127,7 +127,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
                     onPress={() => toggleWorkMode(mode)}
                     className={`px-4 py-2.5 rounded-xl border-2 ${
                       workModes.includes(mode)
-                        ? 'bg-cyan-500 border-cyan-500'
+                        ? 'bg-orange-500 border-orange-500'
                         : 'bg-white border-gray-200'
                     }`}
                   >
@@ -146,7 +146,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
             {/* Expérience */}
             <View className="mb-2">
               <View className="flex-row items-center gap-2 mb-3">
-                <Clock size={18} color="#06B6D4" />
+                <Clock size={18} color="#F97316" />
                 <Text className="text-base font-semibold text-gray-900">Expérience</Text>
               </View>
               <View className="flex-row flex-wrap gap-2">
@@ -161,7 +161,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
                       }}
                       className={`px-4 py-2.5 rounded-xl border-2 ${
                         isSelected
-                          ? 'bg-cyan-500 border-cyan-500'
+                          ? 'bg-orange-500 border-orange-500'
                           : 'bg-white border-gray-200'
                       }`}
                     >
@@ -189,7 +189,7 @@ export function FilterModal({ visible, onClose, onApplyFilters }: FilterModalPro
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleApply}
-              className="flex-1 py-3.5 rounded-xl bg-cyan-500 items-center justify-center shadow-sm"
+              className="flex-1 py-3.5 rounded-xl bg-orange-500 items-center justify-center shadow-sm"
             >
               <Text className="text-base font-bold text-white">Appliquer</Text>
             </TouchableOpacity>

@@ -2,7 +2,7 @@
  * Composant Badge
  * Principe SOLID: SRP - Affichage d'un badge uniquement
  * Atomic Design: Atom
- * Using NativeWind with cyan/yellow/gray palette
+ * Using NativeWind with Orange, Dark Blue, Yellow palette
  */
 
 import { View, Text } from 'react-native';
@@ -10,7 +10,7 @@ import React from 'react';
 
 export interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'error';
+  variant?: 'default' | 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -19,7 +19,7 @@ export interface BadgeProps {
  * 
  * @example
  * <Badge variant="primary">CDI</Badge>
- * <Badge variant="success" size="sm">Disponible</Badge>
+ * <Badge variant="accent" size="sm">Disponible</Badge>
  */
 export function Badge({
   children,
@@ -27,10 +27,12 @@ export function Badge({
   size = 'md'
 }: BadgeProps) {
   const variantClasses = {
-    default: 'bg-gray-200 text-gray-900',
-    primary: 'bg-cyan-500 text-white',
+    default: 'bg-slate-200 text-slate-900',
+    primary: 'bg-orange-500 text-white',
+    secondary: 'bg-blue-900 text-white',
+    accent: 'bg-amber-500 text-white',
     success: 'bg-green-500 text-white',
-    warning: 'bg-yellow-400 text-gray-900',
+    warning: 'bg-amber-500 text-slate-900',
     error: 'bg-red-500 text-white',
   };
 

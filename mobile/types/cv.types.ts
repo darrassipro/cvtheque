@@ -8,18 +8,64 @@ export interface CV {
   personalInfo: PersonalInfo;
   professional: ProfessionalInfo;
   skills: Skill[];
-  languages: Language[];
-  preferences: JobPreferences;
+  languages?: Language[];
+  preferences?: JobPreferences;
+  experience?: Experience[];
+  education?: Education[];
+  metadata?: CVMetadata;
 }
 
 export interface PersonalInfo {
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   fullName: string;
-  photo: string;
+  photo?: string;
   age: number;
   email?: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  nationality?: string;
+}
+
+export interface ProfessionalInfo {
+  position: string;
+  totalExperience?: number;
+  experience?: number; // en années
+  seniority?: Seniority;
+  summary?: string;
+  currentSalary?: number;
+  expectedSalary?: number;
+  contractType?: string;
+  workMode?: string;
+}
+
+export interface Experience {
+  company: string;
+  position: string;
+  duration?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+  achievements?: string[];
+}
+
+export interface Education {
+  institution: string;
+  degree: string;
+  field?: string;
+  year?: string;
+  grade?: string;
+  description?: string;
+}
+
+export interface CVMetadata {
+  fileName?: string;
+  uploadedAt?: string;
+  processingStatus?: string;
+  fileSize?: number;
+  rawData?: any;
 }
 
 export interface ProfessionalInfo {
@@ -91,11 +137,26 @@ export interface CVCardDisplay {
   photo: string;
   fullName: string;
   position: string;
-  experience: number;
-  mainSkills: string[]; // Top 3 skills
+  experience: number | string;
+  mainSkills: string[]; // Top skills
   languages: string[]; // Formatted languages
   contractType: string;
   workMode: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  city?: string;
+  country?: string;
+  totalExperienceYears?: number;
+  seniorityLevel?: string;
+  industry?: string;
+  uploadedAt?: string;
+  processingStatus?: string;
+  education?: any[];
+  workExperience?: any[];
+  certifications?: any[];
+  internships?: any[];
+  aiSummary?: string;
 }
 
 // Type guards

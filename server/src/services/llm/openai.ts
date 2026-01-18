@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { config } from '../../config/index.js';
 import { LLMRequest, LLMResponse } from '../../types/index.js';
 import { LLMProvider } from '../../models/index.js';
 import { BaseLLMProvider } from './base.js';
@@ -15,20 +14,15 @@ export class OpenAIProvider extends BaseLLMProvider {
 
   constructor() {
     super();
-    this.initializeClient();
   }
 
-  private initializeClient(): void {
-    if (config.llm.openaiApiKey) {
-      try {
-        this.client = new OpenAI({
-          apiKey: config.llm.openaiApiKey,
-        });
-        logger.info('OpenAI provider initialized');
-      } catch (error) {
-        logger.error('Failed to initialize OpenAI provider:', error);
-        this.client = null;
-      }
+  configure(apiKey: string): void {
+    try {
+      this.client = new OpenAI({ apiKey });
+      logger.info('OpenAI provider configured from DB');
+    } catch (error) {
+      logger.error('Failed to configure OpenAI provider:', error);
+      this.client = null;
     }
   }
 

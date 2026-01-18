@@ -21,9 +21,11 @@ export interface LLMConfigurationAttributes {
   isDefault: boolean;
   isActive: boolean;
   
+  // Credentials
+  apiKey?: string;
+  
   // Model Parameters
   temperature: number;
-  maxTokens: number;
   topP: number;
   
   // Extraction Settings
@@ -38,7 +40,7 @@ export interface LLMConfigurationAttributes {
 }
 
 export interface LLMConfigurationCreationAttributes extends Optional<LLMConfigurationAttributes,
-  'id' | 'isDefault' | 'isActive' | 'temperature' | 'maxTokens' | 'topP' |
+  'id' | 'isDefault' | 'isActive' | 'temperature' | 'topP' |
   'extractionStrictness' | 'extractionPrompt' | 'summaryPrompt' | 'createdAt' | 'updatedAt'
 > {}
 
@@ -49,8 +51,8 @@ export class LLMConfiguration extends Model<LLMConfigurationAttributes, LLMConfi
   declare model: string;
   declare isDefault: boolean;
   declare isActive: boolean;
+  declare apiKey?: string;
   declare temperature: number;
-  declare maxTokens: number;
   declare topP: number;
   declare extractionStrictness: ExtractionStrictness;
   declare extractionPrompt?: string;
@@ -89,6 +91,11 @@ LLMConfiguration.init(
       defaultValue: true,
       field: 'is_active',
     },
+    apiKey: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'api_key',
+    },
     temperature: {
       type: DataTypes.FLOAT,
       defaultValue: 0.1,
@@ -96,11 +103,6 @@ LLMConfiguration.init(
         min: 0,
         max: 2,
       },
-    },
-    maxTokens: {
-      type: DataTypes.INTEGER,
-      defaultValue: 4096,
-      field: 'max_tokens',
     },
     topP: {
       type: DataTypes.FLOAT,

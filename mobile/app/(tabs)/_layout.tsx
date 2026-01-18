@@ -13,7 +13,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#06B6D4',
+        tabBarActiveTintColor: '#F97316',
         tabBarInactiveTintColor: '#6B7280',
         headerShown: false,
         tabBarButton: HapticTab,
@@ -65,7 +65,7 @@ export default function TabLayout() {
                 height: 46,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: focused ? '#06B6D4' : 'transparent',
+                backgroundColor: focused ? '#F97316' : 'transparent',
                 borderRadius: 23,
               }}
             >
@@ -92,7 +92,7 @@ export default function TabLayout() {
                 height: 46,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: focused ? '#06B6D4' : 'transparent',
+                backgroundColor: focused ? '#F97316' : 'transparent',
                 borderRadius: 23,
               }}
             >

@@ -5,7 +5,7 @@
  * Using NativeWind
  */
 
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import React from 'react';
 import { ActiveFilter } from '@/types/filter.types';
 import { FilterChip } from './FilterChip';
@@ -64,3 +64,34 @@ export function FilterPanel({
     </View>
   );
 }
+
+// Local styles for the filter panel
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    gap: 8,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  clearAll: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F97316',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+});

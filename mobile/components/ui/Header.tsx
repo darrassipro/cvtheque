@@ -1,6 +1,6 @@
 /**
  * Modular Header Component
- * Professional UI/UX with cyan, yellow, gray palette
+ * Professional UI/UX with Orange, Dark Blue, Yellow palette
  * Using NativeWind for styling
  */
 
@@ -58,12 +58,12 @@ export default function Header({
   };
 
   return (
-    <Animated.View style={containerStyle} className="bg-gray-50 border-b border-gray-200 overflow-hidden">
+    <Animated.View style={containerStyle} className="bg-white border-b border-slate-200 overflow-hidden">
       <View className="flex-1 pt-12 px-5">
         <View className="flex-row justify-between items-center mb-5">
           {/* Logo and Title */}
           <View className="flex-row items-center gap-3">
-            <View className="w-12 h-12 rounded-xl bg-white items-center justify-center border border-gray-200 overflow-hidden">
+            <View className="w-12 h-12 rounded-xl bg-white items-center justify-center border border-slate-200 overflow-hidden shadow-sm">
               <Image 
                 source={require('@/assets/images/bencenter.jpg')}
                 className="w-full h-full"
@@ -71,8 +71,8 @@ export default function Header({
               />
             </View>
             <View>
-              <Text className="text-2xl font-bold text-gray-900 tracking-wide">{title}</Text>
-              <Text className="text-sm text-gray-500 mt-0.5 font-medium">{subtitle}</Text>
+              <Text className="text-2xl font-bold text-slate-900 tracking-wide">{title}</Text>
+              <Text className="text-sm text-slate-500 mt-0.5 font-medium">{subtitle}</Text>
             </View>
           </View>
 
@@ -80,7 +80,7 @@ export default function Header({
           <View className="flex-row items-center gap-3">
             {showUpload && (
               <TouchableOpacity
-                className="w-10 h-10 rounded-xl bg-cyan-500 items-center justify-center active:bg-cyan-600"
+                className="w-10 h-10 rounded-xl bg-orange-500 items-center justify-center active:bg-orange-600"
                 activeOpacity={0.7}
                 onPress={handleUploadPress}
               >
@@ -90,18 +90,18 @@ export default function Header({
             
             {showNotifications && (
               <TouchableOpacity
-                className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-gray-200 relative"
+                className="w-10 h-10 rounded-xl bg-white items-center justify-center border border-slate-200 relative"
                 activeOpacity={0.7}
                 onPress={onNotificationPress}
               >
-                <Bell size={22} color="#374151" />
-                <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
+                <Bell size={22} color="#64748B" />
+                <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-orange-500 border-2 border-white" />
               </TouchableOpacity>
             )}
             
             {showProfile && (
               <TouchableOpacity
-                className="w-10 h-10 rounded-full overflow-hidden bg-gray-100"
+                className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200"
                 activeOpacity={0.7}
                 onPress={onProfilePress}
               >

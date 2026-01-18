@@ -98,19 +98,37 @@ export async function getSystemSettings(req: AuthenticatedRequest, res: Response
  * Update a system setting
  */
 export async function updateSystemSetting(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { key, value } = req.body;
+  const body = req.body;
 
-  const oldSetting = await SystemSettings.findOne({ where: { key } });
-  const oldValue = oldSetting?.value;
+  // Handle both single key/value and multiple settings
+  const settings = typeof body.key === 'string' 
+    ? { [body.key]: body.value }
+    : body; // If body is an object with multiple settings
 
-  await SystemSettings.setSetting(key, value);
+  // Filter out system fields
+  const settingsToUpdate = Object.entries(settings)
+    .filter(([key]) => !['key', 'value'].includes(key))
+    .reduce((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, any>);
 
-  await logSettingsChange(req, key, oldValue, value);
+  // Update each setting
+  const results = [];
+  for (const [key, value] of Object.entries(settingsToUpdate)) {
+    const oldSetting = await SystemSettings.findOne({ where: { key } });
+    const oldValue = oldSetting?.value;
+
+    await SystemSettings.setSetting(key, value);
+    await logSettingsChange(req, key, oldValue, value);
+    
+    results.push({ key, value, oldValue });
+  }
 
   res.json({
     success: true,
-    message: 'Setting updated successfully',
-    data: { key, value },
+    message: 'Settings updated successfully',
+    data: results,
   });
 }
 

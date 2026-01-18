@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { config } from '../../config/index.js';
 import { LLMRequest, LLMResponse } from '../../types/index.js';
 import { LLMProvider } from '../../models/index.js';
 import { BaseLLMProvider } from './base.js';
@@ -16,21 +15,18 @@ export class GrokProvider extends BaseLLMProvider {
 
   constructor() {
     super();
-    this.initializeClient();
   }
 
-  private initializeClient(): void {
-    if (config.llm.grokApiKey) {
-      try {
-        this.client = new OpenAI({
-          apiKey: config.llm.grokApiKey,
-          baseURL: 'https://api.x.ai/v1',
-        });
-        logger.info('Grok provider initialized');
-      } catch (error) {
-        logger.error('Failed to initialize Grok provider:', error);
-        this.client = null;
-      }
+  configure(apiKey: string): void {
+    try {
+      this.client = new OpenAI({
+        apiKey,
+        baseURL: 'https://api.x.ai/v1',
+      });
+      logger.info('Grok provider configured from DB');
+    } catch (error) {
+      logger.error('Failed to configure Grok provider:', error);
+      this.client = null;
     }
   }
 

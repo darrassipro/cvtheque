@@ -55,7 +55,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
         prompt: userPrompt,
         systemPrompt,
         temperature: config?.temperature ?? 0.1,
-        maxTokens: config?.maxTokens ?? 4096,
+        maxTokens: 4096,
         topP: config?.topP ?? 0.95,
       });
 
@@ -79,7 +79,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
       prompt: userPrompt,
       systemPrompt: CV_SUMMARY_SYSTEM_PROMPT,
       temperature: config?.temperature ?? 0.3,
-      maxTokens: config?.maxTokens ?? 500,
+      maxTokens: 500,
       topP: config?.topP ?? 0.95,
     });
 

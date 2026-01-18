@@ -8,46 +8,6 @@ const HTTP_TIMEOUT = 30000; // 30 seconds for CV processing
 const baseQuery = fetchBaseQuery({
   baseUrl: SERVER_GATEWAY_DOMAIN,
   credentials: 'include',
-  fetchFn: async (url, options = {}) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), HTTP_TIMEOUT);
-
-    try {
-      console.log(`[RTK Query] Making request:`, {
-        url: url.toString(),
-        method: options.method || 'GET',
-        credentials: 'include',
-      });
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      console.log(`[RTK Query] Response:`, {
-        url: url.toString(),
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-      });
-
-      return response;
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout - please check your connection');
-      }
-      throw error;
-    }
-  },
-  prepareHeaders: async (headers) => {
-    console.log(`[RTK Query] Request headers before:`, Object.fromEntries(headers.entries()));
-    // Tokens are automatically sent via httpOnly cookies
-    // No need to manually add Authorization header
-    return headers;
-  },
 });
 
 // BaseQuery with automatic token refresh on 401

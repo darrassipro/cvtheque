@@ -46,10 +46,18 @@ export function useCVData(service: ICVService = apiCVService): UseCVDataReturn {
 
       // Récupération des CVs via le service
       const data = await service.getAllCVs();
+      console.log('[useCVData] Fetched CVs count:', data.length);
+      if (data.length > 0) {
+        console.log('[useCVData] First CV:', JSON.stringify(data[0], null, 2));
+      }
       setCVs(data);
 
       // Transformation en format d'affichage
       const displayData = data.map(cv => service.toCVCardDisplay(cv));
+      console.log('[useCVData] Display CVs count:', displayData.length);
+      if (displayData.length > 0) {
+        console.log('[useCVData] First display CV:', JSON.stringify(displayData[0], null, 2));
+      }
       setDisplayCVs(displayData);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Erreur lors du chargement des CVs');

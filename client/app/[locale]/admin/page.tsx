@@ -7,7 +7,8 @@ import { UserRole } from '@/types/user.types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import UserManagement from '@/components/admin/UserManagement';
-import { LayoutDashboard, Users, FileText, Settings, Activity } from 'lucide-react';
+import LLMSettings from '@/components/admin/LLMSettings';
+import { LayoutDashboard, Users, FileText, Settings, Zap } from 'lucide-react';
 import { useEffect } from 'react';
 
 export default function AdminPage() {
@@ -44,7 +45,7 @@ export default function AdminPage() {
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
@@ -58,10 +59,16 @@ export default function AdminPage() {
             CVs
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </TabsTrigger>
+            <>
+              <TabsTrigger value="llm" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                LLM
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Settings
+              </TabsTrigger>
+            </>
           )}
         </TabsList>
 
@@ -80,11 +87,16 @@ export default function AdminPage() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="settings">
-            <div className="text-center py-12 text-gray-500">
-              System Settings coming soon...
-            </div>
-          </TabsContent>
+          <>
+            <TabsContent value="llm">
+              <LLMSettings />
+            </TabsContent>
+            <TabsContent value="settings">
+              <div className="text-center py-12 text-gray-500">
+                System Settings coming soon...
+              </div>
+            </TabsContent>
+          </>
         )}
       </Tabs>
     </div>

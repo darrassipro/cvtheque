@@ -3,7 +3,7 @@
  * Displays login and register forms as dismissible modal overlay
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,26 @@ import {
   ScrollView,
   Dimensions,
   SafeAreaView,
+  Animated,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useLoginMutation, useRegisterMutation } from '@/lib/services/authApi';
 import { setCredentials } from '@/lib/slices/authSlice';
 import { router } from 'expo-router';
-import { Eye, EyeOff, ChevronLeft, X } from 'lucide-react-native';
+import { 
+  Eye, 
+  EyeOff, 
+  ChevronLeft, 
+  X, 
+  Mail, 
+  Lock, 
+  User, 
+  LogIn, 
+  UserPlus, 
+  Shield,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react-native';
 
 type AuthMode = 'login' | 'register';
 
@@ -47,7 +61,36 @@ export default function AuthModalScreen() {
 
   const isLoading = mode === 'login' ? loginLoading : registerLoading;
 
-  // Handle close/dismiss - go back to home without modal
+  // Animation values - minimalist security-themed
+  const shieldPulse = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Subtle shield pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shieldPulse, {
+          toValue: 1.1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shieldPulse, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // Handle close/dismiss
   const handleDismiss = () => {
     router.back();
   };
@@ -107,263 +150,304 @@ export default function AuthModalScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1 justify-end"
       >
-        {/* Overlay - visual only, not dismissible by tap */}
+        {/* Overlay - visual only */}
         <View className="flex-1" />
 
-        {/* Modal Content - Bottom Sheet Style */}
-        <SafeAreaView
-          className="bg-white rounded-t-3xl overflow-hidden"
-          style={{
-            maxHeight: screenHeight * 0.85,
-          }}
-        >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ flexGrow: 1 }}
+        {/* Modal Content - Bottom Sheet Style with Orange Top Border */}
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <SafeAreaView
+            className="bg-white rounded-t-3xl overflow-hidden border-t-4 border-orange-500"
+            style={{
+              maxHeight: screenHeight * 0.85,
+            }}
           >
-            {/* Close Button */}
-            <View className="flex-row items-center justify-between px-6 pt-6 pb-4">
-              {mode === 'register' ? (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1 }}
+            >
+              {/* Close Button */}
+              <View className="flex-row items-center justify-between px-6 pt-6 pb-4">
+                {mode === 'register' ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setMode('login');
+                      setError('');
+                    }}
+                    className="flex-row items-center gap-1 bg-gray-100 rounded-full px-3 py-2 active:bg-gray-200"
+                    activeOpacity={0.7}
+                  >
+                    <ChevronLeft size={20} color="#1F2937" strokeWidth={2.5} />
+                    <Text className="text-gray-900 font-bold text-sm">Back</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View />
+                )}
+
                 <TouchableOpacity
-                  onPress={() => {
-                    setMode('login');
-                    setError('');
-                  }}
-                  className="flex-row items-center gap-1"
+                  onPress={handleDismiss}
+                  className="bg-gray-100 rounded-full p-2.5 active:bg-gray-200"
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft size={24} color="#1F2937" />
-                  <Text className="text-gray-900 font-semibold">Back</Text>
+                  <X size={20} color="#374151" strokeWidth={2.5} />
                 </TouchableOpacity>
-              ) : (
-                <View />
-              )}
+              </View>
 
-              <TouchableOpacity
-                onPress={handleDismiss}
-                className="p-2"
-                activeOpacity={0.7}
-              >
-                <X size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Header */}
-            <View className="px-6 pb-6">
-              <Text className="text-3xl font-bold text-gray-900 mb-2">
-                {mode === 'login' ? 'Welcome Back' : 'Create Account'}
-              </Text>
-              <Text className="text-gray-600">
-                {mode === 'login'
-                  ? 'Sign in to access your CVs'
-                  : 'Get started with AI-powered CV analysis'}
-              </Text>
-            </View>
-
-            {/* Form Content */}
-            <View className="px-6 pb-8">
-              {/* Error Message */}
-              {error && (
-                <View className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                  <Text className="text-red-700 font-medium text-sm">{error}</Text>
+              {/* Header - Minimalist Security Theme */}
+              <View className="px-6 pb-6">
+                <View className="flex-row items-center mb-2">
+                  <Animated.View style={{ transform: [{ scale: shieldPulse }] }}>
+                    <Shield size={32} color="#F97316" strokeWidth={2} />
+                  </Animated.View>
+                  <Text className="text-3xl font-bold text-gray-900 ml-3">
+                    {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                  </Text>
                 </View>
-              )}
+                <Text className="text-gray-600">
+                  {mode === 'login'
+                    ? 'Sign in to access your CVs securely'
+                    : 'Get started with secure CV analysis'}
+                </Text>
+              </View>
 
-              {mode === 'login' ? (
-                // LOGIN FORM
-                <View className="space-y-4">
-                  {/* Email */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Email Address
-                    </Text>
-                    <TextInput
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      editable={!isLoading}
-                      placeholderTextColor="#9CA3AF"
-                    />
+              {/* Form Content */}
+              <View className="px-6 pb-8">
+                {/* Error Message */}
+                {error && (
+                  <View className="mb-4 p-4 bg-red-50 rounded-xl border-l-4 border-red-500">
+                    <View className="flex-row items-center">
+                      <AlertCircle size={18} color="#DC2626" />
+                      <Text className="text-red-700 font-semibold text-sm ml-2">{error}</Text>
+                    </View>
                   </View>
+                )}
 
-                  {/* Password */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Password
-                    </Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-lg bg-gray-50 px-4">
-                      <TextInput
-                        className="flex-1 py-3 text-gray-900"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry={!showPassword}
-                        editable={!isLoading}
-                        placeholderTextColor="#9CA3AF"
-                      />
+                {mode === 'login' ? (
+                  // LOGIN FORM
+                  <View className="space-y-4">
+                    {/* Email */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Email Address
+                      </Text>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <Mail size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Enter your email"
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Password */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Password
+                      </Text>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <Lock size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Enter your password"
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry={!showPassword}
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowPassword(!showPassword)}
+                          disabled={isLoading}
+                          className="p-1"
+                        >
+                          {showPassword ? (
+                            <EyeOff size={20} color="#6B7280" />
+                          ) : (
+                            <Eye size={20} color="#6B7280" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Sign In Button */}
+                    <TouchableOpacity
+                      className={`w-full py-4 px-6 rounded-xl mt-6 flex-row items-center justify-center ${
+                        isLoading ? 'bg-orange-400' : 'bg-orange-600 active:bg-orange-700'
+                      }`}
+                      onPress={handleLogin}
+                      disabled={isLoading}
+                      activeOpacity={0.8}
+                    >
+                      {isLoading ? (
+                        <View className="flex-row items-center">
+                          <ActivityIndicator color="white" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Signing In...
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <LogIn size={22} color="white" strokeWidth={2.5} />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Sign In
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Register Link */}
+                    <View className="flex-row justify-center items-center mt-6">
+                      <Text className="text-gray-600 text-sm">Don't have an account? </Text>
                       <TouchableOpacity
-                        onPress={() => setShowPassword(!showPassword)}
+                        onPress={() => {
+                          setMode('register');
+                          setError('');
+                          setEmail('');
+                          setPassword('');
+                        }}
                         disabled={isLoading}
                       >
-                        {showPassword ? (
-                          <EyeOff size={20} color="#6B7280" />
-                        ) : (
-                          <Eye size={20} color="#6B7280" />
-                        )}
+                        <Text className="text-orange-600 font-bold text-sm">Sign up</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
-
-                  {/* Sign In Button */}
-                  <TouchableOpacity
-                    className={`w-full py-4 rounded-lg mt-6 ${
-                      isLoading ? 'bg-cyan-400' : 'bg-cyan-500 active:bg-cyan-600'
-                    }`}
-                    onPress={handleLogin}
-                    disabled={isLoading}
-                    activeOpacity={0.8}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="white" />
-                    ) : (
-                      <Text className="text-white text-center font-bold text-lg">
-                        Sign In
+                ) : (
+                  // REGISTER FORM
+                  <View className="space-y-4">
+                    {/* Full Name */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Full Name
                       </Text>
-                    )}
-                  </TouchableOpacity>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <User size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Enter your full name"
+                          value={fullName}
+                          onChangeText={setFullName}
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
 
-                  {/* Register Link */}
-                  <View className="flex-row justify-center mt-6">
-                    <Text className="text-gray-600 text-sm">Don't have an account? </Text>
+                    {/* Email */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Email Address
+                      </Text>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <Mail size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Enter your email"
+                          value={registerEmail}
+                          onChangeText={setRegisterEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Password */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Password
+                      </Text>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <Lock size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Create a password"
+                          value={registerPassword}
+                          onChangeText={setRegisterPassword}
+                          secureTextEntry={!showRegisterPassword}
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowRegisterPassword(!showRegisterPassword)}
+                          disabled={isLoading}
+                          className="p-1"
+                        >
+                          {showRegisterPassword ? (
+                            <EyeOff size={20} color="#6B7280" />
+                          ) : (
+                            <Eye size={20} color="#6B7280" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Confirm Password */}
+                    <View>
+                      <Text className="text-sm font-bold text-gray-700 mb-2">
+                        Confirm Password
+                      </Text>
+                      <View className="flex-row items-center border-2 border-gray-200 rounded-xl bg-gray-50 px-4">
+                        <CheckCircle2 size={20} color="#F97316" strokeWidth={2.5} />
+                        <TextInput
+                          className="flex-1 py-3 text-gray-900 ml-3"
+                          placeholder="Confirm your password"
+                          value={registerConfirmPassword}
+                          onChangeText={setRegisterConfirmPassword}
+                          secureTextEntry={!showConfirmPassword}
+                          editable={!isLoading}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                          disabled={isLoading}
+                          className="p-1"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff size={20} color="#6B7280" />
+                          ) : (
+                            <Eye size={20} color="#6B7280" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Sign Up Button */}
                     <TouchableOpacity
-                      onPress={() => {
-                        setMode('register');
-                        setError('');
-                        setEmail('');
-                        setPassword('');
-                      }}
+                      className={`w-full py-4 px-6 rounded-xl mt-6 flex-row items-center justify-center ${
+                        isLoading ? 'bg-orange-400' : 'bg-orange-600 active:bg-orange-700'
+                      }`}
+                      onPress={handleRegister}
                       disabled={isLoading}
+                      activeOpacity={0.8}
                     >
-                      <Text className="text-cyan-600 font-bold text-sm">Sign up</Text>
+                      {isLoading ? (
+                        <View className="flex-row items-center">
+                          <ActivityIndicator color="white" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Creating Account...
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <UserPlus size={22} color="white" strokeWidth={2.5} />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Create Account
+                          </Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                   </View>
-                </View>
-              ) : (
-                // REGISTER FORM
-                <View className="space-y-4">
-                  {/* Full Name */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Full Name
-                    </Text>
-                    <TextInput
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChangeText={setFullName}
-                      editable={!isLoading}
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-
-                  {/* Email */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Email Address
-                    </Text>
-                    <TextInput
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900"
-                      placeholder="Enter your email"
-                      value={registerEmail}
-                      onChangeText={setRegisterEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      editable={!isLoading}
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-
-                  {/* Password */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Password
-                    </Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-lg bg-gray-50 px-4">
-                      <TextInput
-                        className="flex-1 py-3 text-gray-900"
-                        placeholder="Create a password"
-                        value={registerPassword}
-                        onChangeText={setRegisterPassword}
-                        secureTextEntry={!showRegisterPassword}
-                        editable={!isLoading}
-                        placeholderTextColor="#9CA3AF"
-                      />
-                      <TouchableOpacity
-                        onPress={() => setShowRegisterPassword(!showRegisterPassword)}
-                        disabled={isLoading}
-                      >
-                        {showRegisterPassword ? (
-                          <EyeOff size={20} color="#6B7280" />
-                        ) : (
-                          <Eye size={20} color="#6B7280" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Confirm Password */}
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-700 mb-2">
-                      Confirm Password
-                    </Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-lg bg-gray-50 px-4">
-                      <TextInput
-                        className="flex-1 py-3 text-gray-900"
-                        placeholder="Confirm your password"
-                        value={registerConfirmPassword}
-                        onChangeText={setRegisterConfirmPassword}
-                        secureTextEntry={!showConfirmPassword}
-                        editable={!isLoading}
-                        placeholderTextColor="#9CA3AF"
-                      />
-                      <TouchableOpacity
-                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                        disabled={isLoading}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff size={20} color="#6B7280" />
-                        ) : (
-                          <Eye size={20} color="#6B7280" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Sign Up Button */}
-                  <TouchableOpacity
-                    className={`w-full py-4 rounded-lg mt-6 ${
-                      isLoading ? 'bg-cyan-400' : 'bg-cyan-500 active:bg-cyan-600'
-                    }`}
-                    onPress={handleRegister}
-                    disabled={isLoading}
-                    activeOpacity={0.8}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="white" />
-                    ) : (
-                      <Text className="text-white text-center font-bold text-lg">
-                        Create Account
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
+                )}
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );

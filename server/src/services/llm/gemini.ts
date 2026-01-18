@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
-import { config } from '../../config/index.js';
 import { LLMRequest, LLMResponse } from '../../types/index.js';
 import { LLMProvider } from '../../models/index.js';
 import { BaseLLMProvider } from './base.js';
@@ -12,24 +11,21 @@ export class GeminiProvider extends BaseLLMProvider {
   provider = LLMProvider.GEMINI;
   private client: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
-  private currentModelName: string = 'gemini-1.5-flash';
+  private currentModelName: string = 'gemini-3-flash-preview';
 
   constructor() {
     super();
-    this.initializeClient();
   }
 
-  private initializeClient(): void {
-    if (config.llm.geminiApiKey) {
-      try {
-        this.client = new GoogleGenerativeAI(config.llm.geminiApiKey);
-        this.model = this.client.getGenerativeModel({ model: this.currentModelName });
-        logger.info('Gemini provider initialized');
-      } catch (error) {
-        logger.error('Failed to initialize Gemini provider:', error);
-        this.client = null;
-        this.model = null;
-      }
+  configure(apiKey: string): void {
+    try {
+      this.client = new GoogleGenerativeAI(apiKey);
+      this.model = this.client.getGenerativeModel({ model: this.currentModelName });
+      logger.info('Gemini provider configured from DB');
+    } catch (error) {
+      logger.error('Failed to configure Gemini provider:', error);
+      this.client = null;
+      this.model = null;
     }
   }
 

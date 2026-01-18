@@ -16,7 +16,7 @@ import { User } from "@/types/user.types";
 export const adminApi = createApi({
   reducerPath: "adminApi",
   baseQuery: baseQuery,
-  tagTypes: ['Dashboard', 'Users', 'User', 'AuditLogs', 'Settings'],
+  tagTypes: ['Dashboard', 'Users', 'User', 'AuditLogs', 'Settings', 'LLMConfigs'],
   endpoints: (builder) => ({
     getDashboardStats: builder.query<{ success: boolean; data: DashboardStats }, void>({
       query: () => ({
@@ -126,6 +126,74 @@ export const adminApi = createApi({
       invalidatesTags: ['Settings'],
     }),
 
+    // LLM Configuration
+    getLLMConfigs: builder.query<{ success: boolean; data: any[] }, void>({
+      query: () => ({
+        url: "/api/llm-config",
+        method: "GET",
+      }),
+      providesTags: ['LLMConfigs'],
+    }),
+
+    createLLMConfig: builder.mutation<{ success: boolean; data: any }, any>({
+      query: (body) => ({
+        url: "/api/llm-config",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ['LLMConfigs'],
+    }),
+
+    updateLLMConfig: builder.mutation<{ success: boolean; data: any }, { id: string; [key: string]: any }>({
+      query: ({ id, ...updates }) => ({
+        url: `/api/llm-config/${id}`,
+        method: "PUT",
+        body: updates,
+      }),
+      invalidatesTags: ['LLMConfigs'],
+    }),
+
+    deleteLLMConfig: builder.mutation<{ success: boolean }, string>({
+      query: (id) => ({
+        url: `/api/llm-config/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ['LLMConfigs'],
+    }),
+
+    setDefaultLLMConfig: builder.mutation<{ success: boolean; data: any }, string>({
+      query: (id) => ({
+        url: `/api/llm-config/${id}/set-default`,
+        method: "POST",
+      }),
+      invalidatesTags: ['LLMConfigs'],
+    }),
+
+    testLLMConfig: builder.mutation<{ success: boolean; message: string }, string>({
+      query: (id) => ({
+        url: `/api/llm-config/${id}/test`,
+        method: "POST",
+      }),
+    }),
+
+    toggleLLMProcessing: builder.mutation<{ success: boolean; data: any }, { enabled: boolean }>({
+      query: ({ enabled }) => ({
+        url: "/api/admin/settings",
+        method: "PUT",
+        body: { llmEnabled: enabled },
+      }),
+      invalidatesTags: ['Settings'],
+    }),
+
+    updateSystemSettings: builder.mutation<{ success: boolean; data: any }, Partial<SystemSettings>>({
+      query: (data) => ({
+        url: "/api/admin/settings",
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: ['Settings'],
+    }),
+
     // Health Check
     healthCheck: builder.query<{ success: boolean; data: any }, void>({
       query: () => ({
@@ -146,6 +214,14 @@ export const {
   useGetAuditLogsQuery,
   useGetSystemSettingsQuery,
   useUpdateSystemSettingMutation,
+  useGetLLMConfigsQuery,
+  useCreateLLMConfigMutation,
+  useUpdateLLMConfigMutation,
+  useDeleteLLMConfigMutation,
+  useSetDefaultLLMConfigMutation,
+  useTestLLMConfigMutation,
+  useToggleLLMProcessingMutation,
+  useUpdateSystemSettingsMutation,
   useHealthCheckQuery,
 } = adminApi;
 

@@ -26,6 +26,11 @@ export interface SystemSettings {
   maxCVsPerUser: number;
   enableAutoProcessing: boolean;
   defaultLLMProvider: string;
+  // Dynamic keys returned from server settings map
+  llmEnabled?: boolean;
+  maxRetries?: number;
+  processingTimeout?: number;
+  [key: string]: any;
 }
 
 export interface AuditLog {
