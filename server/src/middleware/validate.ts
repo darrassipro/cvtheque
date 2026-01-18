@@ -167,6 +167,8 @@ export const userSchemas = {
     location: z.string().max(200).optional(),
     city: z.string().max(100).optional(),
     country: z.string().max(100).optional(),
+    age: z.union([z.number(), z.string()]).optional().nullable(),
+    gender: z.string().max(20).optional().nullable(),
     education: z.array(z.any()).optional(),
     experience: z.array(z.any()).optional(),
     skills: z.any().optional(),

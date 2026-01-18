@@ -2,6 +2,7 @@
 
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { RootState } from '@/lib/store';
 import { openLoginModal, openRegisterModal, logOut } from '@/lib/slices/authSlice';
 import { useLogoutMutation } from '@/lib/services/authApi';
@@ -26,6 +27,11 @@ export default function Header() {
   const router = useRouter();
   const t = useTranslations();
   const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [logoutMutation] = useLogoutMutation();
 
   const handleLogout = async () => {
@@ -76,7 +82,7 @@ export default function Header() {
             >
               Home
             </Link>
-            {isAuthenticated && (
+            {isMounted && isAuthenticated && (
               <Link
                 href="/cvs"
                 className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
@@ -84,7 +90,7 @@ export default function Header() {
                 My CVs
               </Link>
             )}
-            {(isAdmin || isModerator) && (
+            {isMounted && (isAdmin || isModerator) && (
               <Link
                 href="/admin"
                 className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
@@ -96,7 +102,7 @@ export default function Header() {
 
           {/* Auth Section */}
           <div className="flex items-center space-x-4">
-            {!isAuthenticated ? (
+            {isMounted && !isAuthenticated ? (
               <>
                 <Button
                   variant="ghost"
@@ -109,7 +115,7 @@ export default function Header() {
                   Get Started
                 </Button>
               </>
-            ) : (
+            ) : isMounted ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center space-x-2 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -169,7 +175,7 @@ export default function Header() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

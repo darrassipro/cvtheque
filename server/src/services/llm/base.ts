@@ -1,5 +1,6 @@
 import { LLMRequest, LLMResponse, CVExtractionResponse } from '../../types/index.js';
 import { LLMConfiguration, LLMProvider, ExtractionStrictness } from '../../models/index.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Base interface for LLM providers
@@ -107,6 +108,14 @@ export abstract class BaseLLMProvider implements ILLMProvider {
     }
 
     try {
+      // Clean up common JSON issues
+      jsonStr = jsonStr
+        .replace(/,\s*}/g, '}')  // Remove trailing commas before closing braces
+        .replace(/,\s*]/g, ']')  // Remove trailing commas before closing brackets
+        .replace(/\n/g, ' ')     // Replace newlines with spaces
+        .replace(/\r/g, '')      // Remove carriage returns
+        .trim();
+
       const parsed = JSON.parse(jsonStr);
       
       // Check if it's an error response
@@ -116,10 +125,12 @@ export abstract class BaseLLMProvider implements ILLMProvider {
 
       // Validate required structure
       return this.validateAndNormalizeExtraction(parsed);
-    } catch (error) {
+    } catch (error: any) {
+      logger.error(`JSON parsing error: ${error.message}`);
+      logger.error(`Attempted to parse: ${jsonStr.substring(0, 500)}...`);
       return {
         error: 'EXTRACTION_FAILED',
-        reason: 'Failed to parse LLM response as valid JSON',
+        reason: `Failed to parse LLM response as valid JSON: ${error.message}`,
       };
     }
   }
@@ -140,7 +151,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
       },
       education: Array.isArray(data.education) ? data.education : [],
       experience: Array.isArray(data.experience) ? data.experience : [],
-      skills: this.deduplicateSkills(data.skills),
+      skills: this.normalizeSkills(data.skills),
       languages: Array.isArray(data.languages) ? data.languages : [],
       certifications: Array.isArray(data.certifications) ? data.certifications : [],
       internships: Array.isArray(data.internships) ? data.internships : [],
@@ -160,9 +171,32 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   }
 
   /**
+   * Normalize skills to categorized structure
+   */
+  protected normalizeSkills(skills: any): { technical: string[], soft: string[], tools: string[] } {
+    // If already in categorized format
+    if (skills && typeof skills === 'object' && !Array.isArray(skills)) {
+      return {
+        technical: this.deduplicateSkillsArray(skills.technical || []),
+        soft: this.deduplicateSkillsArray(skills.soft || []),
+        tools: this.deduplicateSkillsArray(skills.tools || []),
+      };
+    }
+    
+    // Legacy flat array format - return empty categories
+    if (Array.isArray(skills)) {
+      logger.warn('Received skills as flat array, expected categorized object. Using empty categories.');
+      return { technical: [], soft: [], tools: [] };
+    }
+    
+    // Invalid format
+    return { technical: [], soft: [], tools: [] };
+  }
+
+  /**
    * Deduplicate and normalize skills array
    */
-  protected deduplicateSkills(skills: any): string[] {
+  protected deduplicateSkillsArray(skills: any): string[] {
     if (!Array.isArray(skills)) return [];
     
     const seen = new Set<string>();

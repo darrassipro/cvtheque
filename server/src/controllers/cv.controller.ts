@@ -42,9 +42,12 @@ function transformExtractedData(extractedData: any): any {
       city: extractedData.city || '',
       country: extractedData.country || '',
     },
+    age: extractedData.age ?? null,
+    gender: extractedData.gender || '',
     experience: extractedData.experience || [],
     education: extractedData.education || [],
-    skills: flattenSkills(extractedData.skills),
+    // Preserve skills as categorized JSON (technical, soft, tools)
+    skills: extractedData.skills || { technical: [], soft: [], tools: [] },
     languages: extractedData.languages || [],
     certifications: extractedData.certifications || [],
     internships: extractedData.internships || [],
@@ -57,7 +60,15 @@ function transformExtractedData(extractedData: any): any {
     updatedAt: extractedData.updatedAt,
   };
 
-  logger.debug(`[transformExtractedData] Transformation complete, skills count: ${transformed.skills.length}`);
+  // Compute skills count across categories for logging
+  const skillsCount = Array.isArray((transformed as any).skills)
+    ? ((transformed as any).skills as any[]).length
+    : ['technical','soft','tools'].reduce((sum, key) => {
+        const arr = ((transformed as any).skills?.[key] || []) as any[];
+        return sum + (Array.isArray(arr) ? arr.length : 0);
+      }, 0);
+
+  logger.debug(`[transformExtractedData] Transformation complete, skills count: ${skillsCount}`);
   return transformed;
 }
 
@@ -98,8 +109,9 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
   });
 
   // Create new CV record
-  // If this is the first CV or user doesn't have a default, make it default
-  const isDefault = !defaultCV;
+  // Always mark new uploads as not default initially
+  // After successful processing, it will be set as default
+  const isDefault = false;
   
   const cv = await CV.create({
     userId: req.user.userId,
@@ -133,9 +145,24 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
 
   // Process CV asynchronously
   cvProcessor.processCV(cv, file.path, llmConfig || undefined, llmEnabledSetting)
-    .then(result => {
+    .then(async (result) => {
       if (!result.success) {
         logger.error(`CV processing failed: ${cv.id}`, result.error);
+      } else {
+        // After successful processing, set this CV as default (unset previous default)
+        try {
+          // Unset previous default CV
+          await CV.update(
+            { isDefault: false },
+            { where: { userId: req.user.userId, isDefault: true, id: { [Op.ne]: cv.id } } }
+          );
+          
+          // Set new CV as default
+          await cv.update({ isDefault: true });
+          logger.info(`[uploadCV] New CV ${cv.id} set as default for user ${req.user.userId}`);
+        } catch (error) {
+          logger.error(`Failed to set CV as default: ${cv.id}`, error);
+        }
       }
     })
     .catch(error => {
@@ -182,6 +209,9 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
   if (req.user.role === 'USER') {
     cvWhere.userId = req.user.userId;
   }
+
+  // Only show default CV
+  cvWhere.isDefault = true;
 
   // Default to showing only COMPLETED CVs unless explicitly requesting other statuses
   if (status) {

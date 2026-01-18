@@ -6,12 +6,13 @@
  */
 
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Animated } from 'react-native';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Upload, FileText, Calendar, CheckCircle, Loader, XCircle, Clock, LogIn, TrendingUp } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/lib/store';
 import { useCVData } from '@/hooks/useCVData';
@@ -120,6 +121,16 @@ export default function HomeScreen() {
     await refetch();
     setRefreshing(false);
   };
+
+  // Refetch when screen gains focus to reflect latest data
+  useFocusEffect(
+    useCallback(() => {
+      // Force fresh data on focus
+      clearCVCache();
+      refetch();
+      return () => {};
+    }, [refetch])
+  );
 
   // Animation du header au scroll
   const headerOpacity = scrollY.interpolate({

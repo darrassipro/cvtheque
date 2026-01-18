@@ -45,10 +45,21 @@ export async function seedLLMConfigurations(): Promise<void> {
 
     const configs = [
       {
-        name: 'Gemini Flash (Default)',
+        name: 'Gemini 2.0 Flash (Default)',
         provider: LLMProvider.GEMINI,
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash-exp',
         isDefault: true,
+        isActive: true,
+        temperature: 0.1,
+        maxTokens: 8192,
+        topP: 0.95,
+        extractionStrictness: ExtractionStrictness.STRICT,
+      },
+      {
+        name: 'Gemini 1.5 Flash',
+        provider: LLMProvider.GEMINI,
+        model: 'gemini-1.5-flash-latest',
+        isDefault: false,
         isActive: true,
         temperature: 0.1,
         maxTokens: 4096,
@@ -56,9 +67,9 @@ export async function seedLLMConfigurations(): Promise<void> {
         extractionStrictness: ExtractionStrictness.STRICT,
       },
       {
-        name: 'Gemini Pro',
+        name: 'Gemini 1.5 Pro',
         provider: LLMProvider.GEMINI,
-        model: 'gemini-1.5-pro',
+        model: 'gemini-1.5-pro-latest',
         isDefault: false,
         isActive: true,
         temperature: 0.1,

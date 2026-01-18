@@ -33,7 +33,13 @@ const LLM_PROVIDERS = {
   },
   GEMINI: {
     name: 'Google Gemini',
-    models: ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    models: [
+      'gemini-3-flash-preview',
+      'gemini-2.0-flash-exp',
+      'gemini-pro',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash',
+    ],
   },
 };
 

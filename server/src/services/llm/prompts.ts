@@ -9,14 +9,18 @@ CRITICAL RULES:
 2. If information is not clearly stated, use null for that field
 3. Normalize all dates to ISO format (YYYY-MM-DD) or partial format (YYYY-MM or YYYY)
 4. Remove duplicates from skills lists
-5. Map language proficiency to standard levels: Native, Fluent, Advanced, Intermediate, Basic
-6. Calculate total experience by summing all work experience durations
-7. Determine seniority level based on total experience:
+5. Categorize skills into three distinct categories:
+   - technical: Programming languages, frameworks, databases, technical competencies
+   - soft: Communication, leadership, teamwork, problem-solving, etc.
+   - tools: IDEs, software applications, platforms, development tools
+6. Map language proficiency to standard levels: Native, Fluent, Advanced, Intermediate, Basic
+7. Calculate total experience by summing all work experience durations
+8. Determine seniority level based on total experience:
    - Entry/Junior: 0-2 years
    - Mid-level: 2-5 years  
    - Senior: 5-10 years
    - Lead/Principal: 10+ years
-8. Extract keywords relevant for job matching and search
+9. Extract keywords relevant for job matching and search
 
 OUTPUT FORMAT:
 Return ONLY valid JSON matching the exact schema provided. No explanations, no markdown, no additional text.`;
@@ -35,7 +39,9 @@ Return ONLY a valid JSON object with this exact structure:
     "full_name": "string or null",
     "email": "string or null",
     "phone": "string or null",
-    "location": "string or null (city, country format)",
+    "location": "string or null (full address)",
+    "city": "string or null",
+    "country": "string or null",
     "age": "number or null",
     "gender": "string or null"
   },
@@ -45,7 +51,8 @@ Return ONLY a valid JSON object with this exact structure:
       "institution": "string",
       "field_of_study": "string or null",
       "start_date": "YYYY-MM-DD or YYYY-MM or YYYY or null",
-      "end_date": "YYYY-MM-DD or YYYY-MM or YYYY or null"
+      "end_date": "YYYY-MM-DD or YYYY-MM or YYYY or null",
+      "description": "string or null"
     }
   ],
   "experience": [
@@ -55,21 +62,30 @@ Return ONLY a valid JSON object with this exact structure:
       "start_date": "YYYY-MM-DD or YYYY-MM or YYYY or null",
       "end_date": "YYYY-MM-DD or YYYY-MM or YYYY or 'Present' or null",
       "responsibilities": ["string array"],
-      "achievements": ["string array"]
+      "achievements": ["string array"],
+      "location": "string or null"
     }
   ],
-  "skills": ["deduplicated string array of all technical and soft skills"],
+  "skills": {
+    "technical": ["array of technical/hard skills like programming languages, frameworks, databases"],
+    "soft": ["array of soft skills like leadership, communication, teamwork"],
+    "tools": ["array of tools and technologies like IDEs, software, platforms"]
+  },
   "languages": [
     {
       "language": "string",
-      "proficiency": "Native|Fluent|Advanced|Intermediate|Basic or null"
+      "proficiency": "Native|Fluent|Advanced|Intermediate|Basic or null",
+      "spoken": "string or null",
+      "written": "string or null"
     }
   ],
   "certifications": [
     {
       "name": "string",
       "issuer": "string or null",
-      "date": "YYYY-MM-DD or YYYY or null"
+      "date": "YYYY-MM-DD or YYYY or null",
+      "expiry_date": "YYYY-MM-DD or YYYY or null",
+      "credential_id": "string or null"
     }
   ],
   "internships": [

@@ -43,10 +43,12 @@ export interface CVExtractionInput {
 
 export interface PersonalInfo {
   full_name: string | null;
-  position: string | null;
+  position?: string | null;
   email: string | null;
   phone: string | null;
   location: string | null;
+  city?: string | null;
+  country?: string | null;
   age: number | null;
   gender: string | null;
 }
@@ -57,6 +59,7 @@ export interface EducationEntry {
   field_of_study: string | null;
   start_date: string | null;
   end_date: string | null;
+  description?: string | null;
 }
 
 export interface ExperienceEntry {
@@ -66,17 +69,22 @@ export interface ExperienceEntry {
   end_date: string | null;
   responsibilities: string[];
   achievements: string[];
+  location?: string | null;
 }
 
 export interface LanguageEntry {
   language: string;
   proficiency: string | null;
+  spoken?: string | null;
+  written?: string | null;
 }
 
 export interface CertificationEntry {
   name: string;
   issuer: string | null;
   date: string | null;
+  expiry_date?: string | null;
+  credential_id?: string | null;
 }
 
 export interface InternshipEntry {
@@ -98,8 +106,12 @@ export interface CVExtractionResult {
   personal_info: PersonalInfo;
   education: EducationEntry[];
   experience: ExperienceEntry[];
-  skills: string[];
-  languages: string[];
+  skills: {
+    technical: string[];
+    soft: string[];
+    tools: string[];
+  };
+  languages: LanguageEntry[];
   certifications: CertificationEntry[];
   internships: InternshipEntry[];
   metadata: CVMetadata;

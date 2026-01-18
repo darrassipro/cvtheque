@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   MapPin,
   Mail,
@@ -24,6 +25,8 @@ import {
   BookOpen,
   CheckCircle,
   Lightbulb,
+  Calendar,
+  User,
 } from 'lucide-react-native';
 import { useGetCVByIdQuery } from '@/lib/services/cvApi';
 
@@ -49,6 +52,14 @@ export default function ProfileDetailsScreen() {
     setRefreshing(false);
   };
 
+  // Refetch when screen gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+      return () => {};
+    }, [refetch])
+  );
+
   // Log for debugging
   React.useEffect(() => {
     if (cv) {
@@ -60,7 +71,13 @@ export default function ProfileDetailsScreen() {
         extractedDataKeys: extracted ? Object.keys(extracted) : [],
         hasExperience: extracted?.experience?.length || 0,
         hasEducation: extracted?.education?.length || 0,
-        hasSkills: extracted?.skills?.length || 0,
+        hasSkills:
+          Array.isArray(extracted?.skills)
+            ? (extracted?.skills as any[])?.length || 0
+            : ['technical','soft','tools'].reduce((sum, key) => {
+                const arr = (extracted?.skills as any)?.[key] || [];
+                return sum + (Array.isArray(arr) ? arr.length : 0);
+              }, 0),
       });
     }
   }, [cv, extracted]);
@@ -110,13 +127,19 @@ export default function ProfileDetailsScreen() {
     extracted.personalInfo || 
     (extracted.experience && extracted.experience.length > 0) ||
     (extracted.education && extracted.education.length > 0) ||
-    (extracted.skills && extracted.skills.length > 0)
+    (Array.isArray(extracted.skills)
+      ? (extracted.skills as any[])?.length > 0
+      : ['technical','soft','tools'].some((key) => Array.isArray((extracted.skills as any)?.[key]) && ((extracted.skills as any)?.[key].length > 0)))
   );
 
   // Robust data extraction with fallbacks - declare arrays first
   const experience = extracted?.experience || [];
   const education = extracted?.education || [];
-  const skills = extracted?.skills || [];
+    const rawSkills = extracted?.skills || {};
+    const technicalSkills = Array.isArray(rawSkills) ? rawSkills : (rawSkills?.technical || []);
+    const softSkills = Array.isArray(rawSkills) ? [] : (rawSkills?.soft || []);
+    const toolsSkills = Array.isArray(rawSkills) ? [] : (rawSkills?.tools || []);
+    const allSkills = [...technicalSkills, ...softSkills, ...toolsSkills];
   const languages = extracted?.languages || [];
   const certifications = extracted?.certifications || [];
   const internships = extracted?.internships || [];
@@ -124,14 +147,16 @@ export default function ProfileDetailsScreen() {
   const seniorityLevel = extracted?.seniorityLevel || 'N/A';
   const industry = extracted?.industry || '';
   const keywords = extracted?.keywords || [];
+    const age = extracted?.age || null;
+    const gender = extracted?.gender || '';
   
   // Then extract personal info with fallbacks
   const personalInfo = extracted?.personalInfo || {};
-  const fullName = personalInfo.fullName || cv.originalFileName?.replace(/\.[^/.]+$/, '') || 'Unknown';
+    const fullName = personalInfo.fullName || extracted?.fullName || cv.originalFileName?.replace(/\.[^/.]+$/, '') || 'Unknown';
   const position = personalInfo.position || experience[0]?.jobTitle || experience[0]?.position || 'Professional';
-  const email = personalInfo.email || '';
-  const phone = personalInfo.phone || '';
-  const location = personalInfo.address || [personalInfo.city, personalInfo.country].filter(Boolean).join(', ') || personalInfo.location || '';
+    const email = personalInfo.email || extracted?.email || '';
+    const phone = personalInfo.phone || extracted?.phone || '';
+    const location = personalInfo.address || extracted?.location || [personalInfo.city || extracted?.city, personalInfo.country || extracted?.country].filter(Boolean).join(', ') || personalInfo.location || '';
   
   const isProcessing = cv.status === 'PROCESSING' || cv.status === 'PENDING';
   const isFailed = cv.status === 'FAILED';
@@ -170,13 +195,19 @@ export default function ProfileDetailsScreen() {
           )}
 
           {/* Name */}
-          <Text className="text-3xl font-bold text-white text-center mb-2">
+          <Text
+            className="text-3xl font-bold text-white text-center mb-2"
+            style={{ textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}
+          >
             {fullName}
           </Text>
 
           {/* Position */}
-          <View className="bg-white bg-opacity-20 px-4 py-2 rounded-full mb-4">
-            <Text className="text-lg font-semibold text-white text-center">
+          <View className="bg-white px-4 py-2 rounded-full mb-4 shadow-sm">
+            <Text
+              className="text-lg font-semibold text-orange-700 text-center"
+              style={{ textShadowColor: 'transparent' }}
+            >
               {position}
             </Text>
           </View>
@@ -184,14 +215,14 @@ export default function ProfileDetailsScreen() {
           {/* Key Metrics */}
           {totalExperience > 0 && (
             <View className="flex-row gap-4 mt-4">
-              <View className="bg-white bg-opacity-20 px-3 py-2 rounded-lg">
-                <Text className="text-xs text-white opacity-80">Experience</Text>
-                <Text className="text-lg font-bold text-white">{totalExperience}y</Text>
+              <View className="bg-white px-3 py-2 rounded-lg shadow-sm">
+                <Text className="text-xs text-gray-600">Experience</Text>
+                <Text className="text-lg font-bold text-gray-900">{totalExperience}y</Text>
               </View>
               {seniorityLevel && seniorityLevel !== 'N/A' && (
-                <View className="bg-white bg-opacity-20 px-3 py-2 rounded-lg">
-                  <Text className="text-xs text-white opacity-80">Level</Text>
-                  <Text className="text-lg font-bold text-white">{seniorityLevel}</Text>
+                <View className="bg-white px-3 py-2 rounded-lg shadow-sm">
+                  <Text className="text-xs text-gray-600">Level</Text>
+                  <Text className="text-lg font-bold text-gray-900">{seniorityLevel}</Text>
                 </View>
               )}
             </View>
@@ -200,7 +231,7 @@ export default function ProfileDetailsScreen() {
       </View>
 
       {/* Contact Information Card */}
-      {(email || phone || location) && (
+      {(email || phone || location || age || gender) && (
         <View className="bg-white p-6 mb-2 mx-4 -mt-4 rounded-lg shadow-md border border-gray-100">
           <View className="gap-3">
             {email && (
@@ -233,6 +264,28 @@ export default function ProfileDetailsScreen() {
                 <View className="flex-1">
                   <Text className="text-xs text-gray-500">Location</Text>
                   <Text className="text-sm font-semibold text-gray-900">{location}</Text>
+                </View>
+              </View>
+            )}
+            {age !== null && (
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 bg-purple-100 rounded-lg items-center justify-center">
+                  <Calendar size={18} color="#A855F7" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs text-gray-500">Age</Text>
+                  <Text className="text-sm font-semibold text-gray-900">{age} years</Text>
+                </View>
+              </View>
+            )}
+            {gender && (
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 bg-indigo-100 rounded-lg items-center justify-center">
+                  <User size={18} color="#6366F1" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs text-gray-500">Gender</Text>
+                  <Text className="text-sm font-semibold text-gray-900">{gender}</Text>
                 </View>
               </View>
             )}
@@ -333,7 +386,7 @@ export default function ProfileDetailsScreen() {
       )}
 
       {/* Skills Section */}
-      {skills.length > 0 && (
+      {allSkills.length > 0 && (
         <View className="bg-white p-6 mb-4">
           <View className="flex-row items-center gap-3 mb-4 pb-4 border-b-2 border-purple-200">
             <View className="w-10 h-10 bg-purple-100 rounded-lg items-center justify-center">
@@ -342,17 +395,55 @@ export default function ProfileDetailsScreen() {
             <Text className="text-xl font-bold text-gray-900">Skills</Text>
             <View className="flex-1" />
             <View className="bg-purple-100 px-2.5 py-1 rounded-full">
-              <Text className="text-xs font-bold text-purple-700">{skills.length}</Text>
+              <Text className="text-xs font-bold text-purple-700">{allSkills.length}</Text>
             </View>
           </View>
 
-          <View className="flex-row flex-wrap gap-2">
-            {skills.map((skill: string, index: number) => (
-              <View key={index} className="bg-purple-50 border border-purple-200 px-3.5 py-2 rounded-full flex-row items-center gap-1.5">
-                <Zap size={12} color="#A855F7" />
-                <Text className="text-sm font-semibold text-purple-700">{skill}</Text>
+          <View className="gap-4">
+            {/* Technical Skills */}
+            {technicalSkills.length > 0 && (
+              <View>
+                <Text className="text-sm font-bold text-gray-700 mb-2">Technical Skills</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {technicalSkills.map((skill: string, index: number) => (
+                    <View key={index} className="bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-full flex-row items-center gap-1.5">
+                      <Code size={12} color="#3B82F6" />
+                      <Text className="text-sm font-semibold text-blue-700">{skill}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            ))}
+            )}
+
+            {/* Soft Skills */}
+            {softSkills.length > 0 && (
+              <View>
+                <Text className="text-sm font-bold text-gray-700 mb-2">Soft Skills</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {softSkills.map((skill: string, index: number) => (
+                    <View key={index} className="bg-green-50 border border-green-200 px-3.5 py-2 rounded-full flex-row items-center gap-1.5">
+                      <Lightbulb size={12} color="#22C55E" />
+                      <Text className="text-sm font-semibold text-green-700">{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Tools & Technologies */}
+            {toolsSkills.length > 0 && (
+              <View>
+                <Text className="text-sm font-bold text-gray-700 mb-2">Tools & Technologies</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {toolsSkills.map((skill: string, index: number) => (
+                    <View key={index} className="bg-purple-50 border border-purple-200 px-3.5 py-2 rounded-full flex-row items-center gap-1.5">
+                      <Zap size={12} color="#A855F7" />
+                      <Text className="text-sm font-semibold text-purple-700">{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         </View>
       )}

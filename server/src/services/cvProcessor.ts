@@ -127,14 +127,21 @@ class CVProcessorService {
       let model: string = 'regex-based';
 
       if (llmEnabled && llmConfig) {
-        logger.info(`Using LLM extraction with provider: ${llmConfig.provider}`);
-        const llmResult = await this.llmService.extractCVData(cleanedText, llmConfig);
-        extractionResult = llmResult.result as CVExtractionResult;
-        provider = llmResult.provider;
-        model = llmResult.model;
+        try {
+          logger.info(`Using LLM extraction with provider: ${llmConfig.provider}`);
+          const llmResult = await this.llmService.extractCVData(cleanedText, llmConfig);
+          extractionResult = llmResult.result as CVExtractionResult;
+          provider = llmResult.provider;
+          model = llmResult.model;
 
-        if ('error' in extractionResult) {
-          throw new Error(`LLM extraction failed: ${extractionResult.reason}`);
+          if ('error' in extractionResult) {
+            throw new Error(`LLM extraction failed: ${extractionResult.reason}`);
+          }
+        } catch (llmError: any) {
+          logger.warn(`LLM extraction failed: ${llmError.message}. Falling back to advanced processing.`);
+          extractionResult = this.performAdvancedExtraction(cleanedText, cv.documentType);
+          provider = 'advanced';
+          model = 'regex-based';
         }
       } else {
         logger.info(`Using ADVANCED extraction (LLM disabled)`);
@@ -153,6 +160,26 @@ class CVProcessorService {
         logger.info(`Advanced summary generated: ${aiSummary.length} chars`);
       }
 
+      // Handle skills: LLM now returns categorized skills directly
+      let skills;
+      if (cvData.skills && typeof cvData.skills === 'object' && 'technical' in cvData.skills) {
+        // Already categorized from LLM
+        skills = {
+          technical: cvData.skills.technical || [],
+          soft: cvData.skills.soft || [],
+          tools: cvData.skills.tools || [],
+        };
+      } else if (Array.isArray(cvData.skills)) {
+        // Fallback for old flat array format
+        skills = {
+          technical: cvData.skills.filter(s => this.isTechnicalSkill(s)),
+          soft: cvData.skills.filter(s => this.isSoftSkill(s)),
+          tools: cvData.skills.filter(s => this.isToolSkill(s)),
+        };
+      } else {
+        skills = { technical: [], soft: [], tools: [] };
+      }
+
       const dataToStore = {
         cvId: cv.id,
         fullName: cvData.personal_info.full_name || undefined,
@@ -163,11 +190,7 @@ class CVProcessorService {
         gender: cvData.personal_info.gender || undefined,
         education: cvData.education as any,
         experience: cvData.experience as any,
-        skills: {
-          technical: cvData.skills.filter(s => this.isTechnicalSkill(s)),
-          soft: cvData.skills.filter(s => this.isSoftSkill(s)),
-          tools: cvData.skills.filter(s => this.isToolSkill(s)),
-        } as any,
+        skills: skills as any,
         languages: cvData.languages as any,
         certifications: cvData.certifications as any,
         internships: cvData.internships as any,

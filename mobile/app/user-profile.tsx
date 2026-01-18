@@ -295,6 +295,29 @@ export default function UserProfileScreen() {
     });
   };
 
+  // Skills management
+  const addSkill = (category: 'technical' | 'soft' | 'tools', skill: string) => {
+    if (skill.trim()) {
+      setCvFormData({
+        ...cvFormData,
+        skills: {
+          ...cvFormData.skills,
+          [category]: [...cvFormData.skills[category], skill.trim()],
+        },
+      });
+    }
+  };
+
+  const removeSkill = (category: 'technical' | 'soft' | 'tools', index: number) => {
+    setCvFormData({
+      ...cvFormData,
+      skills: {
+        ...cvFormData.skills,
+        [category]: cvFormData.skills[category].filter((_, i) => i !== index),
+      },
+    });
+  };
+
   if (!user) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-50">
@@ -623,6 +646,89 @@ export default function UserProfileScreen() {
                       onChangeText={(text) => setCvFormData({ ...cvFormData, gender: text })}
                       placeholder="Gender"
                       placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Skills Section */}
+              <View className="mb-6 pb-6 border-b border-gray-200">
+                <Text className="text-lg font-bold text-gray-800 mb-4">Skills</Text>
+
+                {/* Technical Skills */}
+                <View className="mb-4">
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Technical Skills</Text>
+                  <View className="flex-row flex-wrap gap-2 mb-2">
+                    {cvFormData.skills.technical.map((skill, index) => (
+                      <View key={index} className="bg-blue-100 px-3 py-1.5 rounded-full flex-row items-center gap-1">
+                        <Text className="text-blue-700 text-sm">{skill}</Text>
+                        <TouchableOpacity onPress={() => removeSkill('technical', index)}>
+                          <Text className="text-blue-700 font-bold ml-1">×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  <View className="flex-row items-center gap-2">
+                    <TextInput
+                      className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 text-gray-900"
+                      placeholder="Add technical skill"
+                      placeholderTextColor="#9CA3AF"
+                      onSubmitEditing={(e) => {
+                        addSkill('technical', e.nativeEvent.text);
+                        e.currentTarget.clear();
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Soft Skills */}
+                <View className="mb-4">
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Soft Skills</Text>
+                  <View className="flex-row flex-wrap gap-2 mb-2">
+                    {cvFormData.skills.soft.map((skill, index) => (
+                      <View key={index} className="bg-green-100 px-3 py-1.5 rounded-full flex-row items-center gap-1">
+                        <Text className="text-green-700 text-sm">{skill}</Text>
+                        <TouchableOpacity onPress={() => removeSkill('soft', index)}>
+                          <Text className="text-green-700 font-bold ml-1">×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  <View className="flex-row items-center gap-2">
+                    <TextInput
+                      className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 text-gray-900"
+                      placeholder="Add soft skill"
+                      placeholderTextColor="#9CA3AF"
+                      onSubmitEditing={(e) => {
+                        addSkill('soft', e.nativeEvent.text);
+                        e.currentTarget.clear();
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Tools */}
+                <View className="mb-4">
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Tools & Technologies</Text>
+                  <View className="flex-row flex-wrap gap-2 mb-2">
+                    {cvFormData.skills.tools.map((skill, index) => (
+                      <View key={index} className="bg-purple-100 px-3 py-1.5 rounded-full flex-row items-center gap-1">
+                        <Text className="text-purple-700 text-sm">{skill}</Text>
+                        <TouchableOpacity onPress={() => removeSkill('tools', index)}>
+                          <Text className="text-purple-700 font-bold ml-1">×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  <View className="flex-row items-center gap-2">
+                    <TextInput
+                      className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 text-gray-900"
+                      placeholder="Add tool or technology"
+                      placeholderTextColor="#9CA3AF"
+                      onSubmitEditing={(e) => {
+                        addSkill('tools', e.nativeEvent.text);
+                        e.currentTarget.clear();
+                      }}
                     />
                   </View>
                 </View>

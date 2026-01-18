@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useGetCVByIdQuery, useGetCVExtractedDataQuery } from '@/lib/services/cvApi';
 import {
   FileText,
@@ -56,6 +57,15 @@ export default function CVDetailsScreen() {
       return () => clearInterval(interval);
     }
   }, [isProcessing]);
+
+  // Refetch on screen focus to reflect latest status/data
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchCV();
+      refetchExtracted();
+      return () => {};
+    }, [refetchCV, refetchExtracted])
+  );
 
   const StatusBadge = ({ status }: { status: string }) => {
     const config = {
