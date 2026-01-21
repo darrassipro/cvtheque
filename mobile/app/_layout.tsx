@@ -7,7 +7,7 @@ import ReduxProvider from '@/lib/ReduxProvider';
 import { ToastProvider } from '@/lib/context/ToastContext';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/store';
 import { restoreSession, setLoading } from '@/lib/slices/authSlice';
@@ -20,6 +20,7 @@ function AppContent() {
   const dispatch = useDispatch();
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
+  const authModalShownRef = useRef(false);
 
   useEffect(() => {
     // Check if user has seen onboarding
@@ -30,7 +31,7 @@ function AppContent() {
         
         const seen = await AsyncStorage.getItem('hasSeenOnboarding');
         console.log('[Onboarding Check] hasSeenOnboarding value from storage:', seen);
-        setHasSeenOnboarding(seen === 'false');
+        setHasSeenOnboarding(seen === 'true');
       } catch (error) {
         console.error('Failed to check onboarding:', error);
         setHasSeenOnboarding(false);
@@ -82,19 +83,20 @@ function AppContent() {
       return;
     }
 
-    // Onboarding has been seen - check authentication
-    // If authenticated, stay on main tabs (don't navigate)
-    // If not authenticated, show auth modal
-    if (!isAuthenticated) {
-      console.log('[Navigation] Not authenticated - showing auth modal');
-      // Use setTimeout to ensure tabs are mounted first
+    // Onboarding has been seen
+    // Show auth modal once when not authenticated
+    if (!isAuthenticated && !authModalShownRef.current) {
+      console.log('[Navigation] Not authenticated - pushing auth modal over tabs');
+      authModalShownRef.current = true;
       setTimeout(() => {
-        console.log('[Navigation] Pushing auth-modal');
         router.push('/auth-modal');
-      }, 100);
-    } else {
-      console.log('[Navigation] Authenticated - hiding auth modal and showing home');
-      // If user somehow navigated to auth-modal while authenticated, go back to tabs
+      }, 50);
+      return;
+    }
+
+    // If authenticated, reset the flag and ensure modal is closed
+    if (isAuthenticated) {
+      authModalShownRef.current = false;
       if (router.canGoBack()) {
         router.back();
       }
@@ -134,7 +136,11 @@ function AppContent() {
             headerShown: false,
             presentation: 'transparentModal',
             animationEnabled: true,
+            animation: 'slide_from_bottom',
             cardStyle: { backgroundColor: 'transparent' },
+            cardOverlayEnabled: true,
+            gestureEnabled: true,
+            gestureDirection: 'vertical',
           }}
         />
         

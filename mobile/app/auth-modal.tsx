@@ -154,13 +154,17 @@ export default function AuthModalScreen() {
   const screenHeight = Dimensions.get('window').height;
 
   return (
-    <View className="flex-1 bg-black/30">
+    <View className="flex-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1 justify-end"
       >
-        {/* Overlay - visual only */}
-        <View className="flex-1" />
+        {/* Overlay - Tap to dismiss */}
+        <TouchableOpacity 
+          className="flex-1" 
+          activeOpacity={1}
+          onPress={handleDismiss}
+        />
 
         {/* Modal Content - Bottom Sheet Style with Orange Top Border */}
         <Animated.View style={{ opacity: fadeAnim }}>

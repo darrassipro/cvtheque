@@ -1,26 +1,14 @@
 import { Tabs } from 'expo-router';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Platform, View } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Home, Upload, User } from 'lucide-react-native';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/lib/store';
-import { router } from 'expo-router';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const colors = colorScheme === 'dark' ? Colors.dark : Colors.light;
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-
-  // Redirect to auth if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('[Tabs] User not authenticated - redirecting to auth modal');
-      router.replace('/auth-modal');
-    }
-  }, [isAuthenticated]);
 
   return (
     <Tabs

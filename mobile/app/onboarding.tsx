@@ -47,12 +47,6 @@ export default function OnboardingScreen() {
     }).start();
   }, [currentSlide]);
 
-  // Don't hide onboarding when completed - allows user to navigate back from modal
-  // Instead render an empty screen that can accept navigation from modal
-  if (isCompleted) {
-    return <View className="flex-1 bg-white" />;
-  }
-
   const slide = onboardingSlides[currentSlide];
   const isLastSlide = currentSlide === totalSlides - 1;
 
