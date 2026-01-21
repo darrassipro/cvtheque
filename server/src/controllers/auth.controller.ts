@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
-import { User, UserStatus, RefreshToken } from '../models/index.js';
+import { User, UserStatus, UserRole, RefreshToken } from '../models/index.js';
 import { AuthenticatedRequest } from '../types/index.js';
 import { generateTokens, verifyRefreshToken, parseExpiryToMs } from '../middleware/auth.js';
 import { logAuthEvent } from '../middleware/audit.js';
@@ -26,7 +26,8 @@ export async function register(req: AuthenticatedRequest, res: Response): Promis
     password,
     firstName,
     lastName,
-    status: UserStatus.PENDING,
+    role: UserRole.USER, // default member
+    status: UserStatus.ACTIVE, // activate immediately for demo
   });
 
   // Generate tokens
