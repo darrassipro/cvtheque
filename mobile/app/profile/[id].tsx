@@ -31,8 +31,9 @@ import {
 import { useGetCVByIdQuery } from '@/lib/services/cvApi';
 
 export default function ProfileDetailsScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, photo } = useLocalSearchParams();
   const profileId = Array.isArray(id) ? id[0] : id;
+  const passedPhoto = Array.isArray(photo) ? photo[0] : photo;
 
   const {
     data: cvData,
@@ -45,6 +46,33 @@ export default function ProfileDetailsScreen() {
 
   const cv = cvData?.data;
   const extracted = cv?.extractedData;
+  const aiSummary = cv?.aiSummary || extracted?.aiSummary;
+
+  /**
+   * Photo Priority Chain:
+   * 1. Passed photo from navigation (from CVCard) - ensures consistency
+   * 2. cv.metadata?.rawData?.photo - Updated CV photo from avatar upload
+   * 3. extracted.photo - Original CV extraction
+   * 4. cv.metadata?.rawData?.user?.avatar - User profile avatar
+   * 5. cv.photoUrl - Legacy photo URL
+   * 6. Generated avatar with initials
+   */
+  const getPhotoUrl = () => {
+    if (passedPhoto) return passedPhoto;
+    if (!cv) return null;
+    
+    const fullName = extracted?.personalInfo?.fullName || extracted?.fullName || cv.originalFileName?.replace(/\.[^/.]+$/, '') || 'Unknown';
+    
+    return (
+      cv.metadata?.rawData?.photo ||
+      extracted?.photo ||
+      cv.metadata?.rawData?.user?.avatar ||
+      cv.photoUrl ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=F97316&color=fff`
+    );
+  };
+
+  const photoUrl = getPhotoUrl();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -183,10 +211,11 @@ export default function ProfileDetailsScreen() {
         <View className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 py-8">
         <View className="items-center">
           {/* Avatar */}
-          {cv.photoUrl ? (
+          {photoUrl ? (
             <Image
-              source={{ uri: cv.photoUrl }}
+              source={{ uri: photoUrl }}
               className="w-28 h-28 rounded-full border-4 border-white mb-4"
+              resizeMode="cover"
             />
           ) : (
             <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-white shadow-lg mb-4">
@@ -291,6 +320,21 @@ export default function ProfileDetailsScreen() {
                 </View>
               </View>
             )}
+          </View>
+        </View>
+      )}
+
+      {/* AI Summary Section */}
+      {aiSummary && (
+        <View className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 mb-4 mt-4 mx-4 rounded-lg border border-blue-200">
+          <View className="flex-row items-start gap-3">
+            <View className="w-10 h-10 bg-blue-100 rounded-lg items-center justify-center">
+              <Lightbulb size={20} color="#3B82F6" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-lg font-bold text-gray-900 mb-2">Professional Summary</Text>
+              <Text className="text-sm text-gray-700 leading-relaxed">{aiSummary}</Text>
+            </View>
           </View>
         </View>
       )}

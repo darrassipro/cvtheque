@@ -9,6 +9,8 @@ export interface User {
   role: 'USER' | 'MODERATOR' | 'ADMIN' | 'SUPERADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'SUSPENDED';
   phone?: string;
+  avatar?: string;
+  // Legacy field kept for backward compatibility with older responses
   profilePicture?: string;
   createdAt?: string;
   updatedAt?: string;

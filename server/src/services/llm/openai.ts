@@ -10,7 +10,7 @@ import { logger } from '../../utils/logger.js';
 export class OpenAIProvider extends BaseLLMProvider {
   provider = LLMProvider.OPENAI;
   private client: OpenAI | null = null;
-  private currentModelName: string = 'gpt-4o-mini';
+  private currentModelName: string = 'gpt-5.2-2025-12-11';
 
   constructor() {
     super();

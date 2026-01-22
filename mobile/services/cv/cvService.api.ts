@@ -295,19 +295,28 @@ export class ApiCVService implements ICVService {
    * Transforme un CV en format d'affichage pour les cartes
    * ✅ Extracts data with proper fallbacks
    * ✅ Formats languages with proficiency levels
-   * ✅ Handles missing data gracefully
    * ✅ Returns complete CVCardDisplay with all fields
+   * ✅ Handles photo priority: user.avatar → cv.photo → generated avatar
+   * ✅ Gracefully handles missing data
    */
   toCVCardDisplay(cv: CV): CVCardDisplay {
+    // Guard against missing or invalid cv
+    if (!cv || !cv.id) {
+      throw new Error('Invalid CV: missing id');
+    }
+
     // Extract data from metadata if available
     const extractedData = cv.metadata?.rawData?.extractedData || {};
     const rawData = cv.metadata?.rawData || {};
+    const personalInfo = cv.personalInfo || {} as any;
+    const professional = cv.professional || {} as any;
+    const skillsArray = cv.skills || [];
     
     // Get position from personal info (backend adds it there)
-    const position = cv.personalInfo?.position || 
-                     cv.professional?.position || 
-                     extractedData.personalInfo?.position || 
-                     'Professional';
+    const position = personalInfo.position || 
+             professional.position || 
+             extractedData.personalInfo?.position || 
+             'Professional';
     
     // Get languages - try multiple sources
     const languages = extractedData.languages || cv.languages || [];
@@ -325,54 +334,65 @@ export class ApiCVService implements ICVService {
       return proficiency ? `${langName} (${proficiency})` : langName;
     }).filter(Boolean);
 
-    // Get photo - try multiple sources
-    const photo = cv.metadata?.rawData?.photoUrl || 
-                  extractedData.photo || 
-                  rawData.photoUrl ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(cv.personalInfo.fullName)}`;
+    /**
+     * Photo Priority Chain (Quality Fix):
+     * 1. cv.metadata?.rawData?.photo - Updated CV photo from avatar upload
+     * 2. extractedData.photo - Original CV extraction (fallback)
+     * 3. rawData.photoUrl - Metadata photo URL
+     * 4. cv.metadata?.rawData?.user?.avatar - User profile avatar (when CV linked to user)
+     * 5. Generated avatar with initials (fallback)
+     */
+    const fullName = personalInfo.fullName || rawData.originalFileName || rawData.fileName || cv.originalFileName || 'Unknown';
+    const photo = 
+      cv.metadata?.rawData?.photo ||  // ✅ Primary: Updated by avatar upload
+      extractedData.photo ||            // Fallback 1: Original extraction
+      rawData.photoUrl ||               // Fallback 2: Metadata URL
+      (cv.metadata?.rawData?.user?.avatar) ||  // Fallback 3: User avatar
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=F97316&color=fff`;
 
-    // Get location - combine city and country
-    const location = cv.personalInfo.address || 
-                     (cv.personalInfo.city && cv.personalInfo.country 
-                       ? `${cv.personalInfo.city}, ${cv.personalInfo.country}` 
-                       : '');
+    // Get location - combine city and country (guard if personalInfo missing)
+    const location = (personalInfo.address) || 
+                     ((personalInfo.city && personalInfo.country)
+                       ? `${personalInfo.city}, ${personalInfo.country}`
+                       : '') || '';
 
     // DEBUG LOG: Show what's being displayed
     console.log('[toCVCardDisplay] CARD DATA:', {
-      fullName: cv.personalInfo.fullName,
-      position: cv.professional.position,
-      location: location,
-      totalExperienceYears: cv.professional.totalExperience,
-      seniorityLevel: cv.professional.seniority,
-      mainSkillsCount: cv.skills.length,
+      fullName,
+      position,
+      location,
+      totalExperienceYears: professional.totalExperience,
+      seniorityLevel: professional.seniority,
+      mainSkillsCount: skillsArray.length,
       languagesCount: formattedLanguages.length,
+      photoSource: photo.includes('ui-avatars') ? 'generated' : 'uploaded',
     });
 
     return {
       id: cv.id,
       photo: photo,
-      fullName: cv.personalInfo.fullName,
+      fullName: personalInfo.fullName || fullName,
       position: position,
       location: location,
-      city: cv.personalInfo.city,
-      country: cv.personalInfo.country,
-      experience: cv.professional.totalExperience || 0,
-      contractType: cv.professional.contractType || 'CDI',
-      workMode: cv.professional.workMode || 'Hybride',
-      mainSkills: cv.skills.slice(0, 5).map(s => s.name),
+      city: personalInfo.city || '',
+      country: personalInfo.country || '',
+      experience: professional.totalExperience || 0,
+      contractType: professional.contractType || 'CDI',
+      workMode: professional.workMode || 'Hybride',
+      mainSkills: (skillsArray || []).slice(0, 5).map((s: any) => s?.name || s).filter(Boolean),
       languages: formattedLanguages,
-      email: cv.personalInfo.email,
-      phone: cv.personalInfo.phone,
-      totalExperienceYears: cv.professional.totalExperience || 0,
-      seniorityLevel: cv.professional.seniority || extractedData.seniorityLevel || 'Entry Level',
+      email: personalInfo.email || '',
+      phone: personalInfo.phone || '',
+      totalExperienceYears: professional.totalExperience || 0,
+      seniorityLevel: professional.seniority || extractedData.seniorityLevel || 'Entry Level',
       industry: extractedData.industry || '',
       uploadedAt: cv.metadata?.uploadedAt || new Date().toISOString(),
       processingStatus: cv.metadata?.processingStatus || 'COMPLETED',
-      education: cv.education,
-      workExperience: cv.experience,
+      education: cv.education || [],
+      workExperience: cv.experience || [],
       certifications: extractedData.certifications || [],
       internships: extractedData.internships || [],
-      aiSummary: cv.metadata?.rawData?.aiSummary || cv.professional.summary || '',
+      aiSummary: cv.metadata?.rawData?.aiSummary || professional.summary || '',
     };
   }
 }

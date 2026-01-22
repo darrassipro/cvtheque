@@ -23,10 +23,10 @@ export default function UserAvatar({ onProfilePress }: UserAvatarProps) {
   const handleLogoutOrLogin = () => {
     setShowDropdown(false);
     if (isAuthenticated) {
+      // Just dispatch logout - layout/onboarding will handle showing auth modal
       dispatch(logOut());
-      // Use push instead of replace to keep tabs in background
-      router.push('/auth-modal');
     } else {
+      // Show auth modal when not authenticated
       router.push('/auth-modal');
     }
   };
@@ -48,7 +48,7 @@ export default function UserAvatar({ onProfilePress }: UserAvatarProps) {
         onPress={() => setShowDropdown(!showDropdown)}
       >
         <Image
-          source={{ uri: user?.profilePicture || 'https://i.pravatar.cc/150?img=12' }}
+          source={{ uri: user?.avatar || user?.profilePicture || 'https://i.pravatar.cc/150?img=12' }}
           className="w-full h-full"
           resizeMode="cover"
         />

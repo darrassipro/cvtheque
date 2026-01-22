@@ -2,10 +2,13 @@ import { Response } from 'express';
 import { Op } from 'sequelize';
 import { User, UserRole, UserStatus, CV, CVExtractedData, CVStatus } from '../models/index.js';
 import { AuthenticatedRequest } from '../types/index.js';
-import { NotFoundError, ForbiddenError, ConflictError } from '../middleware/errorHandler.js';
+import { NotFoundError, ForbiddenError, ConflictError, ServiceUnavailableError, ValidationError } from '../middleware/errorHandler.js';
 import { canModifyUser } from '../middleware/authorize.js';
 import { logAudit } from '../middleware/audit.js';
 import { AuditAction } from '../models/AuditLog.js';
+import { getCloudinaryService } from '../services/storage/cloudinary.js';
+import { cleanupUploadedFile } from '../middleware/upload.js';
+import fs from 'fs';
 
 /**
  * List all users (with pagination and filtering)
@@ -343,6 +346,80 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response): P
     message: 'Profile updated successfully',
     data: user.toJSON(),
   });
+}
+
+/**
+ * Upload and update current user's avatar (profile photo)
+ * - Accepts a single image file via multipart/form-data field `avatar`
+ * - Stores in Cloudinary under a per-user folder with face crop + auto quality
+ */
+export async function uploadProfileAvatar(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) {
+    throw new ValidationError('No avatar file provided');
+  }
+
+  const cloudinary = getCloudinaryService();
+  if (!cloudinary.isAvailable()) {
+    await cleanupUploadedFile(file.path);
+    throw new ServiceUnavailableError('Cloudinary is not configured');
+  }
+
+  const user = await User.findByPk(req.user.userId);
+  if (!user) {
+    await cleanupUploadedFile(file.path);
+    throw new NotFoundError('User');
+  }
+
+  try {
+    const buffer = await fs.promises.readFile(file.path);
+    const uploadResult = await cloudinary.uploadProfilePhoto(buffer, {
+      folder: `cvtech/users/${user.id}`,
+      publicId: `avatar_${user.id}`,
+    });
+
+    await user.update({ avatar: uploadResult.secureUrl });
+    await logAudit(req, AuditAction.UPDATE, 'user', user.id, { avatarUpdated: true });
+
+    // Also update the user's default CV extracted data with the new avatar
+    // so CVCards display the updated profile photo
+    const defaultCV = await CV.findOne({
+      where: {
+        userId: req.user.userId,
+        isDefault: true,
+        status: CVStatus.COMPLETED,
+      },
+      include: [{
+        model: CVExtractedData,
+        as: 'extractedData',
+        required: false,
+      }],
+    });
+
+    if (defaultCV) {
+      const extractedData = (defaultCV as any).extractedData as CVExtractedData | null;
+      if (extractedData) {
+        await extractedData.update({
+          photo: uploadResult.secureUrl,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Avatar updated successfully',
+      data: {
+        avatar: uploadResult.secureUrl,
+        publicId: uploadResult.publicId,
+      },
+    });
+  } finally {
+    await cleanupUploadedFile(file.path);
+  }
 }
 
 /**

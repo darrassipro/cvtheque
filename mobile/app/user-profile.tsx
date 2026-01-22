@@ -5,12 +5,13 @@
 
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, FlatList } from 'react-native';
 import { useState, useEffect } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { ArrowLeft, User as UserIcon, Mail, Phone, Save, Camera, MapPin, Briefcase, GraduationCap, Trash2, Plus, AlertCircle } from 'lucide-react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/store';
 import { updateUser, User } from '@/lib/slices/authSlice';
-import { useUpdateProfileMutation, useGetProfileCVQuery, useUpdateProfileCVMutation, useListUserCVsQuery, useSetDefaultCVMutation, useDeleteCVMutation } from '@/lib/services/userApi';
+import { useUpdateProfileMutation, useGetProfileCVQuery, useUpdateProfileCVMutation, useListUserCVsQuery, useSetDefaultCVMutation, useDeleteCVMutation, useUploadProfileAvatarMutation } from '@/lib/services/userApi';
 import { useToast } from '@/lib/context/ToastContext';
 
 interface CVFormData {
@@ -71,6 +72,7 @@ export default function UserProfileScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
   const [updateProfileApi, { isLoading: isUpdating }] = useUpdateProfileMutation();
+  const [uploadAvatarApi, { isLoading: isAvatarUploading }] = useUploadProfileAvatarMutation();
   const { data: cvData, isLoading: isCVLoading } = useGetProfileCVQuery(undefined);
   const [updateCVApi, { isLoading: isCVUpdating }] = useUpdateProfileCVMutation();
   const { data: allCVsData, isLoading: isLoadingCVs } = useListUserCVsQuery(undefined);
@@ -109,6 +111,11 @@ export default function UserProfileScreen() {
   });
 
   const [isSaved, setIsSaved] = useState(false);
+  const [pendingAvatar, setPendingAvatar] = useState<{
+    uri: string;
+    name: string;
+    type: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -152,6 +159,23 @@ export default function UserProfileScreen() {
     }
 
     try {
+      // Upload avatar if pending
+      if (pendingAvatar) {
+        const avatarFormData = new FormData();
+        avatarFormData.append('avatar', {
+          uri: pendingAvatar.uri,
+          name: pendingAvatar.name,
+          type: pendingAvatar.type,
+        } as any);
+        
+        const response = await uploadAvatarApi(avatarFormData).unwrap();
+        const newAvatar = (response as any)?.data?.avatar;
+        if (newAvatar) {
+          dispatch(updateUser({ avatar: newAvatar }));
+        }
+        setPendingAvatar(null);
+      }
+
       if (activeTab === 'personal') {
         await updateProfileApi(formData).unwrap();
         dispatch(updateUser(formData));
@@ -170,6 +194,11 @@ export default function UserProfileScreen() {
   };
 
   const hasChanges = () => {
+    // Check if avatar is pending upload
+    if (pendingAvatar) {
+      return true;
+    }
+
     if (activeTab === 'personal') {
       return (
         formData.firstName !== user?.firstName ||
@@ -187,6 +216,36 @@ export default function UserProfileScreen() {
     const firstInitial = formData.firstName?.charAt(0) || '';
     const lastInitial = formData.lastName?.charAt(0) || '';
     return (firstInitial + lastInitial).toUpperCase() || 'U';
+  };
+
+  const avatarUrl = user?.avatar || (user as any)?.profilePicture;
+
+  const handleAvatarUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      
+      // Store avatar for upload on save
+      setPendingAvatar({
+        uri: asset.uri,
+        name: asset.name || 'avatar.jpg',
+        type: asset.mimeType || 'image/jpeg',
+      });
+      
+      // Show image immediately (preview)
+      dispatch(updateUser({ avatar: asset.uri }));
+      showToast('Photo selected. Click Save to upload.', 'success');
+    } catch (error) {
+      console.error('Avatar upload failed', error);
+      showToast('Failed to select photo.', 'error');
+    }
   };
 
   // Helper functions for managing CV arrays
@@ -363,21 +422,31 @@ export default function UserProfileScreen() {
           <View className="items-center">
             {/* Avatar */}
             <View className="relative">
-              <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-white shadow-lg">
-                <Text className="text-5xl font-bold text-orange-500">
-                  {getInitials()}
-                </Text>
+              <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-white shadow-lg overflow-hidden">
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} className="w-full h-full" resizeMode="cover" />
+                ) : (
+                  <Text className="text-5xl font-bold text-orange-500">
+                    {getInitials()}
+                  </Text>
+                )}
               </View>
               <TouchableOpacity
                 className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-white border-2 border-orange-500 items-center justify-center shadow-md"
                 activeOpacity={0.7}
+                onPress={handleAvatarUpload}
+                disabled={isAvatarUploading}
               >
-                <Camera size={18} color="#F97316" />
+                {isAvatarUploading ? (
+                  <ActivityIndicator size="small" color="#F97316" />
+                ) : (
+                  <Camera size={18} color="#F97316" />
+                )}
               </TouchableOpacity>
             </View>
 
             {/* Role Badge */}
-            <View className="bg-white bg-opacity-20 px-4 py-2 rounded-full mt-4">
+            <View className="bg-orange-500 bg-opacity-20 px-4 py-2 rounded-full mt-4">
               <Text className="text-sm font-semibold text-white">
                 {user.role}
               </Text>

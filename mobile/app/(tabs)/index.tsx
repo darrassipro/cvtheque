@@ -81,8 +81,11 @@ export default function HomeScreen() {
   }, []);
 
   // Navigate to CV details
-  const handleCVPress = (cvId: string) => {
-    router.push(`/profile/${cvId}`);
+  const handleCVPress = (cvId: string, photo?: string) => {
+    router.push({
+      pathname: `/profile/${cvId}`,
+      params: { photo: photo || '' }
+    });
   };
 
   // Navigate to upload

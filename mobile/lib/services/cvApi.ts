@@ -36,6 +36,22 @@ export const cvApi = createApi({
     getCVExtractedData: builder.query({
       query: (id: string) => `/api/cvs/${id}/extracted-data`,
     }),
+    getSharedWithMe: builder.query({
+      query: () => '/api/cvs/shared-with-me',
+      providesTags: ['CVs'],
+    }),
+    getSharedByMe: builder.query({
+      query: () => '/api/cvs/shared-by-me',
+      providesTags: ['CVs'],
+    }),
+    shareWithConsultant: builder.mutation({
+      query: (body: { consultantId: string; cvIds: string[]; name?: string; description?: string; expiresAt?: string }) => ({
+        url: '/api/cvs/share/consultant',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['CVs'],
+    }),
     uploadCV: builder.mutation({
       query: (formData: FormData) => ({
         url: '/api/cvs/upload',
@@ -58,6 +74,9 @@ export const {
   useListCVsQuery,
   useGetCVByIdQuery,
   useGetCVExtractedDataQuery,
+  useGetSharedWithMeQuery,
+  useGetSharedByMeQuery,
+  useShareWithConsultantMutation,
   useUploadCVMutation,
   useDeleteCVMutation,
 } = cvApi;

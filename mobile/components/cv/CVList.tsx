@@ -15,7 +15,7 @@ export interface CVListProps {
   cvs: CVCardDisplay[];
   loading?: boolean;
   error?: Error | null;
-  onCVPress?: (cvId: string) => void;
+  onCVPress?: (cvId: string, photo?: string) => void;
   emptyMessage?: string;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -124,7 +124,7 @@ export function CVList({
         renderItem={({ item }) => (
           <CVCard
             cv={item}
-            onPress={() => onCVPress?.(item.id)}
+            onPress={() => onCVPress?.(item.id, item.photo)}
             viewMode={viewMode}
           />
         )}

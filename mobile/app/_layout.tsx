@@ -20,15 +20,11 @@ function AppContent() {
   const dispatch = useDispatch();
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
-  const authModalShownRef = useRef(false);
 
   useEffect(() => {
     // Check if user has seen onboarding
     const checkOnboarding = async () => {
       try {
-        // FOR TESTING: Uncomment the line below to reset onboarding
-        // await AsyncStorage.removeItem('hasSeenOnboarding');
-        
         const seen = await AsyncStorage.getItem('hasSeenOnboarding');
         console.log('[Onboarding Check] hasSeenOnboarding value from storage:', seen);
         setHasSeenOnboarding(seen === 'true');
@@ -70,36 +66,25 @@ function AppContent() {
   useEffect(() => {
     // Navigate based on app state
     if (isCheckingOnboarding || isLoading) {
-      console.log('[Navigation] Waiting - isCheckingOnboarding:', isCheckingOnboarding, 'isLoading:', isLoading);
       return;
     }
 
-    console.log('[Navigation] Checking state - hasSeenOnboarding:', hasSeenOnboarding, 'isAuthenticated:', isAuthenticated);
-
-    // First launch - show onboarding by replacing the current route
+    // First launch - show onboarding
     if (hasSeenOnboarding === false) {
-      console.log('[Navigation] First launch detected - replacing with onboarding');
       router.replace('/onboarding');
       return;
     }
 
     // Onboarding has been seen
-    // Show auth modal once when not authenticated
-    if (!isAuthenticated && !authModalShownRef.current) {
-      console.log('[Navigation] Not authenticated - pushing auth modal over tabs');
-      authModalShownRef.current = true;
-      setTimeout(() => {
-        router.push('/auth-modal');
-      }, 50);
+    // Show auth modal when not authenticated
+    if (!isAuthenticated) {
+      router.push('/auth-modal');
       return;
     }
 
-    // If authenticated, reset the flag and ensure modal is closed
-    if (isAuthenticated) {
-      authModalShownRef.current = false;
-      if (router.canGoBack()) {
-        router.back();
-      }
+    // If authenticated, close modal
+    if (isAuthenticated && router.canGoBack()) {
+      router.back();
     }
   }, [hasSeenOnboarding, isAuthenticated, isLoading, isCheckingOnboarding]);
 

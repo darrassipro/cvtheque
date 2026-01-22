@@ -4,6 +4,7 @@ import { authenticate, requireActiveAccount } from '../middleware/auth.js';
 import { authorize, requireAdmin, requireSuperAdmin } from '../middleware/authorize.js';
 import { validate, userSchemas } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { uploadAvatar } from '../middleware/upload.js';
 import { UserRole } from '../models/index.js';
 
 const router = Router();
@@ -59,6 +60,13 @@ router.put(
   '/profile',
   validate({ body: userSchemas.updateProfile }),
   asyncHandler(userController.updateProfile)
+);
+
+// Upload / update profile avatar (multipart/form-data with field "avatar")
+router.post(
+  '/profile/avatar',
+  uploadAvatar,
+  asyncHandler(userController.uploadProfileAvatar)
 );
 
 /**

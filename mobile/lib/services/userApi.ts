@@ -18,6 +18,14 @@ export const userApi = createApi({
       }),
       invalidatesTags: ['Profile'],
     }),
+    uploadProfileAvatar: builder.mutation({
+      query: (formData: FormData) => ({
+        url: '/api/users/profile/avatar',
+        method: 'POST',
+        body: formData,
+      }),
+      invalidatesTags: ['Profile'],
+    }),
     getProfileCV: builder.query({
       query: () => '/api/users/profile/cv',
       providesTags: ['ProfileCV'],
@@ -63,12 +71,22 @@ export const userApi = createApi({
         body: data,
       }),
     }),
+    searchUsers: builder.query({
+      query: (params: { search?: string; role?: string; limit?: number }) => {
+        const queryParams = new URLSearchParams();
+        if (params.search) queryParams.append('search', params.search);
+        if (params.role) queryParams.append('role', params.role);
+        queryParams.append('limit', String(params.limit || 50));
+        return `/api/users?${queryParams.toString()}`;
+      },
+    }),
   }),
 });
 
 export const {
   useGetProfileQuery,
   useUpdateProfileMutation,
+  useUploadProfileAvatarMutation,
   useGetProfileCVQuery,
   useUpdateProfileCVMutation,
   useListUserCVsQuery,
@@ -76,5 +94,6 @@ export const {
   useDeleteCVMutation,
   useUpdateUserMutation,
   useChangePasswordMutation,
+  useSearchUsersQuery,
 } = userApi;
 

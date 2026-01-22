@@ -43,6 +43,25 @@ router.post(
   asyncHandler(cvController.uploadCV)
 );
 
+// Share CVs with a consultant (admin/moderator/superadmin)
+router.post(
+  '/share/consultant',
+  requireModerator,
+  asyncHandler(cvController.shareCVsWithConsultant)
+);
+
+// Get CVs shared with the authenticated user (consultant inbox)
+router.get(
+  '/shared-with-me',
+  asyncHandler(cvController.getSharedWithMe)
+);
+
+// Get CVs shared BY the authenticated user (sharing history for admins)
+router.get(
+  '/shared-by-me',
+  asyncHandler(cvController.getSharedByMe)
+);
+
 /**
  * @swagger
  * /api/cvs:

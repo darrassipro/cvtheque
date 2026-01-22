@@ -99,6 +99,17 @@ export default function AuthModalScreen() {
       return;
     }
 
+    // Clear form and keyboard when modal appears (after logout)
+    setEmail('');
+    setPassword('');
+    setRegisterEmail('');
+    setRegisterPassword('');
+    setRegisterConfirmPassword('');
+    setFullName('');
+    setError('');
+    setMode('login');
+    Keyboard.dismiss();
+
     // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -160,13 +171,13 @@ export default function AuthModalScreen() {
   };
 
   const screenHeight = Dimensions.get('window').height;
-  // Keep sheet at bottom when keyboard closed; lift when open
+  // Use 'height' for Android, 'padding' for iOS - provides better keyboard avoidance
   const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : 'height';
-  const keyboardOffset = Platform.OS === 'ios' ? 24 : 0;
+  const keyboardOffset = Platform.OS === 'ios' ? 40 : 0;
 
-  // Adjust modal height based on keyboard - shrink when keyboard visible
+  // Always keep modal visible above keyboard
   const modalMaxHeight = keyboardHeight > 0 
-    ? screenHeight * 0.6 
+    ? Math.max(screenHeight - keyboardHeight - 100, screenHeight * 0.5)
     : screenHeight * 0.85;
 
   return (
@@ -174,6 +185,7 @@ export default function AuthModalScreen() {
       <KeyboardAvoidingView
         behavior={keyboardBehavior}
         keyboardVerticalOffset={keyboardOffset}
+        enabled={true}
         className="flex-1 justify-end"
       >
         {/* Overlay - Tap to dismiss */}

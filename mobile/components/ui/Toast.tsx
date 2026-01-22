@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Animated, View, Text, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, AlertCircle, CheckCircle, Info } from 'lucide-react-native';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -18,6 +19,7 @@ export interface ToastProps {
 
 const Toast = React.forwardRef<any, ToastProps>(
   ({ message, type = 'info', duration = 4000, onDismiss }, ref) => {
+    const insets = useSafeAreaInsets();
     const [visible, setVisible] = useState(true);
     const [translateY] = useState(new Animated.Value(-100));
 
@@ -83,7 +85,7 @@ const Toast = React.forwardRef<any, ToastProps>(
         style={{
           transform: [{ translateY }],
           position: 'absolute',
-          top: 0,
+          top: insets.top,
           left: 0,
           right: 0,
           zIndex: 999,

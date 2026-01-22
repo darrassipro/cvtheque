@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
-import { CV, CVStatus, CVExtractedData, LLMConfiguration, DocumentType, SystemSettings } from '../models/index.js';
+import { CV, CVStatus, CVExtractedData, LLMConfiguration, DocumentType, SystemSettings, User, CVList, CVListItem, CVListShare, UserRole } from '../models/index.js';
 import { AuthenticatedRequest } from '../types/index.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
 import { getDocumentType, cleanupUploadedFile } from '../middleware/upload.js';
@@ -285,12 +285,20 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
 
   const { rows: cvs, count: total } = await CV.findAndCountAll({
     where: cvWhere,
-    include: [{
-      model: CVExtractedData,
-      as: 'extractedData',
-      required: false, // LEFT JOIN to include CVs without extraction (failed/processing)
-      where: hasExtractedFilters ? extractedDataWhere : undefined,
-    }],
+    include: [
+      {
+        model: CVExtractedData,
+        as: 'extractedData',
+        required: false, // LEFT JOIN to include CVs without extraction (failed/processing)
+        where: hasExtractedFilters ? extractedDataWhere : undefined,
+      },
+      {
+        model: User,
+        as: 'user',
+        required: false, // LEFT JOIN to include CVs from deleted users
+        attributes: ['id', 'avatar', 'firstName', 'lastName'], // Only fetch needed fields
+      }
+    ],
     order: [[sortBy as string, sortOrder.toString().toUpperCase()]],
     limit: limitNum,
     offset,
@@ -354,8 +362,19 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
   const transformedCVs = cvs.map((cv: any) => {
     const cvJson = cv.toJSON();
     const extractedDataToTransform = (cv as any).extractedData;
+    const userAvatarUrl = (cv as any).user?.avatar; // Get user avatar if available
+    
     return {
       ...cvJson,
+      // Include user data in metadata for photo fallback chain
+      metadata: {
+        ...cvJson.metadata,
+        user: (cv as any).user ? {
+          avatar: userAvatarUrl,
+          firstName: (cv as any).user.firstName,
+          lastName: (cv as any).user.lastName,
+        } : undefined,
+      },
       extractedData: transformExtractedData(extractedDataToTransform) || {
         // Fallback data when LLM extraction failed or is pending
         personalInfo: {
@@ -415,7 +434,15 @@ export async function getCV(req: AuthenticatedRequest, res: Response): Promise<v
   const id = req.params.id as string;
 
   const cv = await CV.findByPk(id, {
-    include: [{ model: CVExtractedData, as: 'extractedData' }],
+    include: [
+      { model: CVExtractedData, as: 'extractedData' },
+      {
+        model: User,
+        as: 'user',
+        required: false,
+        attributes: ['id', 'avatar', 'firstName', 'lastName'],
+      }
+    ],
   });
 
   if (!cv) {
@@ -424,15 +451,55 @@ export async function getCV(req: AuthenticatedRequest, res: Response): Promise<v
 
   // Check access permissions
   if (req.user?.role === 'USER' && cv.userId !== req.user.userId) {
-    throw new ForbiddenError('You can only access your own CVs');
+    // Check if CV has been shared with this user
+    const isSharedWithUser = await CVListShare.findOne({
+      where: {
+        sharedWith: req.user.userId,
+        [Op.or]: [
+          { expiresAt: null },
+          { expiresAt: { [Op.gt]: new Date() } },
+        ],
+      },
+      include: [
+        {
+          model: CVList,
+          as: 'list',
+          required: true,
+          include: [
+            {
+              model: CVListItem,
+              as: 'items',
+              required: true,
+              where: { cvId: id },
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!isSharedWithUser) {
+      throw new ForbiddenError('You can only access your own CVs or CVs shared with you');
+    }
   }
 
   await logAudit(req, AuditAction.READ, 'cv', cv.id);
 
+  const cvJson = cv.toJSON() as any;
+  const userAvatarUrl = (cv as any).user?.avatar;
+
   res.json({
     success: true,
     data: {
-      ...cv.toJSON(),
+      ...cvJson,
+      // Include user data in metadata for photo fallback chain
+      metadata: {
+        ...cvJson.metadata,
+        user: (cv as any).user ? {
+          avatar: userAvatarUrl,
+          firstName: (cv as any).user.firstName,
+          lastName: (cv as any).user.lastName,
+        } : undefined,
+      },
       extractedData: transformExtractedData((cv as any).extractedData),
     },
   });
@@ -470,6 +537,126 @@ export async function getCVExtractedData(req: AuthenticatedRequest, res: Respons
   res.json({
     success: true,
     data: transformed,
+  });
+}
+
+/**
+ * Get CVs shared BY the current user (sharing history)
+ * Shows which CVs the user has shared with consultants
+ */
+export async function getSharedByMe(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  // Find all lists created by this user with their shares
+  const myLists = await CVList.findAll({
+    where: { userId: req.user.userId },
+    include: [
+      {
+        model: CVListItem,
+        as: 'items',
+        required: true,
+        include: [
+          {
+            model: CV,
+            as: 'cv',
+            required: true,
+            include: [
+              {
+                model: CVExtractedData,
+                as: 'extractedData',
+                required: false,
+              },
+              {
+                model: User,
+                as: 'user',
+                required: false,
+                attributes: ['id', 'avatar', 'firstName', 'lastName'],
+              },
+            ],
+          }
+        ]
+      },
+      {
+        model: CVListShare,
+        as: 'shares',
+        required: true,
+        where: {
+          [Op.or]: [
+            { expiresAt: null },
+            { expiresAt: { [Op.gt]: new Date() } },
+          ],
+        },
+        include: [
+          {
+            model: User,
+            as: 'sharedWithUser',
+            attributes: ['id', 'firstName', 'lastName', 'email'],
+          }
+        ]
+      }
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  if (!myLists.length) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  // Transform into sharing history with consultant grouping
+  const sharingHistory: any[] = [];
+
+  for (const list of myLists) {
+    const listJson = list.toJSON() as any;
+    
+    for (const share of listJson.shares || []) {
+      for (const item of listJson.items || []) {
+        const cv = item.cv;
+        if (!cv) continue;
+
+        const transformedExtracted = transformExtractedData(cv.extractedData);
+
+        const metadata = {
+          ...cv.metadata,
+          rawData: {
+            ...cv.metadata?.rawData,
+            user: cv.user
+              ? {
+                  id: cv.user.id,
+                  avatar: cv.user.avatar,
+                  firstName: cv.user.firstName,
+                  lastName: cv.user.lastName,
+                }
+              : undefined,
+            // Add sharing metadata
+            sharedWith: share.sharedWithUser
+              ? {
+                  id: share.sharedWithUser.id,
+                  firstName: share.sharedWithUser.firstName,
+                  lastName: share.sharedWithUser.lastName,
+                  email: share.sharedWithUser.email,
+                }
+              : undefined,
+            sharedAt: share.createdAt,
+            listName: listJson.name,
+            listDescription: listJson.description,
+          },
+        };
+
+        sharingHistory.push({
+          ...cv,
+          metadata,
+          extractedData: transformedExtracted,
+        });
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    data: sharingHistory,
   });
 }
 
@@ -646,5 +833,177 @@ export async function getCVStatistics(req: AuthenticatedRequest, res: Response):
   res.json({
     success: true,
     data: stats,
+  });
+}
+
+/**
+ * Share a set of CVs with a consultant (admin/moderator/superadmin)
+ */
+export async function shareCVsWithConsultant(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  const { consultantId, cvIds, name, description, expiresAt } = req.body as {
+    consultantId?: string;
+    cvIds?: string[];
+    name?: string;
+    description?: string;
+    expiresAt?: string;
+  };
+
+  if (!consultantId) {
+    throw new ValidationError('consultantId is required');
+  }
+  if (!Array.isArray(cvIds) || cvIds.length === 0) {
+    throw new ValidationError('cvIds must be a non-empty array');
+  }
+
+  // Ensure consultant exists
+  const consultant = await User.findByPk(consultantId);
+  if (!consultant) {
+    throw new NotFoundError('Consultant user');
+  }
+
+  // Create a list to group shared CVs
+  const list = await CVList.create({
+    name: name || `Consultant share - ${new Date().toISOString()}`,
+    description: description || `Shared by ${req.user.userId}`,
+    userId: req.user.userId,
+    isPublic: false,
+  });
+
+  // Add CVs to the list (ignore duplicates)
+  const uniqueCvIds = Array.from(new Set(cvIds));
+  await CVListItem.bulkCreate(
+    uniqueCvIds.map((cvId) => ({ listId: list.id, cvId })),
+    { ignoreDuplicates: true }
+  );
+
+  // Share the list with the consultant
+  const share = await CVListShare.create({
+    listId: list.id,
+    sharedWith: consultantId,
+    canEdit: false,
+    expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+  });
+
+  const shareBaseUrl = process.env.APP_BASE_URL || 'https://app.cvtech.local';
+  const shareUrl = `${shareBaseUrl.replace(/\/$/, '')}/consultant/${list.id}`;
+
+  // Optional QR code generation (graceful fallback if library is missing)
+  let qrCodeDataUrl: string | undefined;
+  try {
+    const QRCode = await import('qrcode');
+    qrCodeDataUrl = await QRCode.toDataURL(shareUrl);
+  } catch (err) {
+    logger.warn('QR code generation skipped (qrcode package not installed):', err);
+  }
+
+  await logAudit(req, AuditAction.CREATE, 'cv_list_share', share.id, {
+    consultantId,
+    cvCount: uniqueCvIds.length,
+  });
+
+  res.json({
+    success: true,
+    message: 'CVs shared with consultant',
+    data: {
+      listId: list.id,
+      sharedWith: consultantId,
+      cvCount: uniqueCvIds.length,
+      shareUrl,
+      qrCodeDataUrl,
+    },
+  });
+}
+
+/**
+ * Get CVs shared with the authenticated user (consultant view)
+ */
+export async function getSharedWithMe(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  // Fetch shares targeted to this user (not expired)
+  const shares = await CVListShare.findAll({
+    where: {
+      sharedWith: req.user.userId,
+      [Op.or]: [
+        { expiresAt: null },
+        { expiresAt: { [Op.gt]: new Date() } },
+      ],
+    },
+    raw: true,
+  });
+
+  if (!shares.length) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  const listIds = Array.from(new Set(shares.map((s) => s.listId)));
+  const items = await CVListItem.findAll({
+    where: { listId: listIds },
+    raw: true,
+  });
+
+  const cvIds = Array.from(new Set(items.map((i) => i.cvId)));
+  if (!cvIds.length) {
+    res.json({ success: true, data: [] });
+    return;
+  }
+
+  const cvs = await CV.findAll({
+    where: { id: cvIds },
+    include: [
+      {
+        model: CVExtractedData,
+        as: 'extractedData',
+        required: false,
+      },
+      {
+        model: User,
+        as: 'user',
+        required: false,
+        attributes: ['id', 'avatar', 'firstName', 'lastName'],
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
+
+  const transformed = cvs.map((cv: any) => {
+    const cvJson = cv.toJSON();
+
+    // Transform extracted data for frontend
+    const transformedExtracted = transformExtractedData(cvJson.extractedData);
+
+    // Attach user info into metadata for photo priority
+    const metadata = {
+      ...cvJson.metadata,
+      rawData: {
+        ...cvJson.metadata?.rawData,
+        user: cvJson.user
+          ? {
+              id: cvJson.user.id,
+              avatar: cvJson.user.avatar,
+              firstName: cvJson.user.firstName,
+              lastName: cvJson.user.lastName,
+            }
+          : undefined,
+      },
+    };
+
+    return {
+      ...cvJson,
+      metadata,
+      extractedData: transformedExtracted,
+    };
+  });
+
+  res.json({
+    success: true,
+    data: transformed,
   });
 }

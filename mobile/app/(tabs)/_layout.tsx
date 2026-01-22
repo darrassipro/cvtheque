@@ -4,7 +4,7 @@ import { Platform, View } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Home, Upload, User } from 'lucide-react-native';
+import { Home, Upload, UserRoundSearch } from 'lucide-react-native';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -79,11 +79,11 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tab Profile */}
+      {/* Tab Consultant */}
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Profile',
+          title: 'Consultant',
           tabBarShowLabel: false,
           tabBarIcon: ({ color, focused }) => (
             <View
@@ -96,7 +96,7 @@ export default function TabLayout() {
                 borderRadius: 23,
               }}
             >
-              <User 
+              <UserRoundSearch 
                 size={23} 
                 color={focused ? '#FFFFFF' : '#6B7280'} 
                 strokeWidth={focused ? 2.2 : 2} 
