@@ -339,7 +339,7 @@ export default function UserProfileScreen() {
             <Text className="text-orange-600 font-semibold">Back</Text>
           </TouchableOpacity>
           
-          {hasChanges() && (
+          {hasChanges() && (activeTab === 'personal' || (activeTab === 'cv' && cvData?.data)) && (
             <TouchableOpacity
               className={`px-4 py-2 rounded-lg ${isUpdating || isCVUpdating || !isAccountActive ? 'bg-gray-400' : 'bg-orange-600'}`}
               onPress={handleSave}
