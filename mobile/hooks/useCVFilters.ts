@@ -6,18 +6,15 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { CV } from '@/types/cv.types';
+import { CVCardDisplay } from '@/types/cv.types';
 import { CVFilters, ActiveFilter, FilterCategory, FilterState } from '@/types/filter.types';
-import { ICVService } from '@/services/cv/cvService.types';
-import { apiCVService } from '@/services/cv/cvService.api';
 
 interface UseCVFiltersProps {
-  cvs: CV[];
-  service?: ICVService;
+  cvs: CVCardDisplay[];
 }
 
 interface UseCVFiltersReturn {
-  filteredCVs: CV[];
+  filteredCVs: CVCardDisplay[];
   filters: CVFilters;
   filterState: FilterState;
   setFilter: (key: keyof CVFilters, value: any) => void;
@@ -28,17 +25,16 @@ interface UseCVFiltersReturn {
 }
 
 /**
- * Vérifie si un CV contient le texte de recherche
+ * Vérifie si un CV affiche le texte de recherche (format carte)
  */
-function matchesSearchQuery(cv: CV, query: string): boolean {
-  if (!cv?.personalInfo || !query) return true;
+function matchesSearchQuery(cv: CVCardDisplay, query: string): boolean {
+  if (!query) return true;
   
   const lowerQuery = query.toLowerCase();
   return (
-    cv.personalInfo.fullName?.toLowerCase().includes(lowerQuery) ||
-    cv.professional?.position?.toLowerCase().includes(lowerQuery) ||
-    cv.skills?.some((s) => s.name?.toLowerCase().includes(lowerQuery)) ||
-    false
+    cv.fullName?.toLowerCase().includes(lowerQuery) ||
+    cv.position?.toLowerCase().includes(lowerQuery) ||
+    cv.mainSkills?.some((skill) => skill?.toLowerCase().includes(lowerQuery))
   );
 }
 
@@ -46,34 +42,37 @@ function matchesSearchQuery(cv: CV, query: string): boolean {
  * Vérifie si l'expérience du CV correspond à la plage
  */
 function matchesExperienceRange(
-  cv: CV,
+  cv: CVCardDisplay,
   range: { min: number; max: number } | undefined
 ): boolean {
-  if (!range || !cv?.professional) return true;
-  const exp = cv.professional.totalExperience || 0;
+  if (!range) return true;
+  const expValue = typeof cv.experience === 'number' ? cv.experience : Number(cv.experience || 0);
+  const exp = Number.isFinite(expValue) ? expValue : 0;
   return exp >= range.min && exp <= range.max;
 }
 
 /**
  * Vérifie si le type de contrat du CV correspond
  */
-function matchesContractType(cv: CV, contractTypes: string[] | undefined): boolean {
-  if (!contractTypes || contractTypes.length === 0 || !cv?.professional) return true;
-  return contractTypes.includes(cv.professional.contractType || '');
+function matchesContractType(cv: CVCardDisplay, contractTypes: string[] | undefined): boolean {
+  if (!contractTypes || contractTypes.length === 0) return true;
+  const cvContract = (cv.contractType || '').toLowerCase();
+  return contractTypes.some((type) => type.toLowerCase() === cvContract);
 }
 
 /**
  * Vérifie si le mode de travail du CV correspond
  */
-function matchesWorkMode(cv: CV, workModes: string[] | undefined): boolean {
-  if (!workModes || workModes.length === 0 || !cv?.professional) return true;
-  return workModes.includes(cv.professional.workMode || '');
+function matchesWorkMode(cv: CVCardDisplay, workModes: string[] | undefined): boolean {
+  if (!workModes || workModes.length === 0) return true;
+  const cvMode = (cv.workMode || '').toLowerCase();
+  return workModes.some((mode) => mode.toLowerCase() === cvMode);
 }
 
 /**
  * Applique tous les filtres à un CV
  */
-function applyCVFilters(cv: CV, filters: CVFilters): boolean {
+function applyCVFilters(cv: CVCardDisplay, filters: CVFilters): boolean {
   if (!cv) return false;
 
   return (
@@ -89,7 +88,6 @@ function applyCVFilters(cv: CV, filters: CVFilters): boolean {
  * Calcule les CVs filtrés de manière optimisée
  * 
  * @param cvs - Liste des CVs à filtrer
- * @param service - Service CV pour le filtrage
  * @returns CVs filtrés et fonctions de gestion des filtres
  * 
  * @example
@@ -101,8 +99,7 @@ function applyCVFilters(cv: CV, filters: CVFilters): boolean {
  * } = useCVFilters({ cvs: allCVs });
  */
 export function useCVFilters({
-  cvs,
-  service = apiCVService
+  cvs
 }: UseCVFiltersProps): UseCVFiltersReturn {
   const [filters, setFilters] = useState<CVFilters>({});
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
