@@ -327,8 +327,7 @@ export default function UserProfileScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-gray-50">
-      {/* Header */}
+    <View className="flex-1 bg-gray-50">
       <View className="bg-white border-b border-gray-200">
         <View className="flex-row items-center justify-between p-4 pt-12">
           <TouchableOpacity
@@ -358,32 +357,33 @@ export default function UserProfileScreen() {
         </View>
       </View>
 
-      {/* Profile Header */}
-      <View className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 py-8">
-        <View className="items-center">
-          {/* Avatar */}
-          <View className="relative">
-            <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-white shadow-lg">
-              <Text className="text-5xl font-bold text-orange-500">
-                {getInitials()}
+      <ScrollView className="flex-1">
+        {/* Profile Header */}
+        <View className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 py-8">
+          <View className="items-center">
+            {/* Avatar */}
+            <View className="relative">
+              <View className="w-28 h-28 rounded-full bg-white items-center justify-center border-4 border-white shadow-lg">
+                <Text className="text-5xl font-bold text-orange-500">
+                  {getInitials()}
+                </Text>
+              </View>
+              <TouchableOpacity
+                className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-white border-2 border-orange-500 items-center justify-center shadow-md"
+                activeOpacity={0.7}
+              >
+                <Camera size={18} color="#F97316" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Role Badge */}
+            <View className="bg-white bg-opacity-20 px-4 py-2 rounded-full mt-4">
+              <Text className="text-sm font-semibold text-white">
+                {user.role}
               </Text>
             </View>
-            <TouchableOpacity
-              className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-white border-2 border-orange-500 items-center justify-center shadow-md"
-              activeOpacity={0.7}
-            >
-              <Camera size={18} color="#F97316" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Role Badge */}
-          <View className="bg-white bg-opacity-20 px-4 py-2 rounded-full mt-4">
-            <Text className="text-sm font-semibold text-white">
-              {user.role}
-            </Text>
           </View>
         </View>
-      </View>
 
       {/* Pending Approval Banner */}
       {isPendingApproval && (
@@ -1132,5 +1132,6 @@ export default function UserProfileScreen() {
 
       <View className="h-8" />
     </ScrollView>
+  </View>
   );
 }

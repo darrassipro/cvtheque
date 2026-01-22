@@ -24,7 +24,8 @@ export default function UserAvatar({ onProfilePress }: UserAvatarProps) {
     setShowDropdown(false);
     if (isAuthenticated) {
       dispatch(logOut());
-      router.replace('/auth-modal');
+      // Use push instead of replace to keep tabs in background
+      router.push('/auth-modal');
     } else {
       router.push('/auth-modal');
     }

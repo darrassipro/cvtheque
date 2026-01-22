@@ -162,12 +162,9 @@ export default function ProfileDetailsScreen() {
   const isFailed = cv.status === 'FAILED';
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      {/* Header */}
-      <View className="bg-white border-b border-gray-200">
+    <View className="flex-1 bg-gray-50">
+      {/* Fixed Header */}
+      <View className="bg-white border-b border-gray-200 pt-8 z-10">
         <TouchableOpacity
           className="flex-row items-center gap-2 p-4"
           onPress={() => router.back()}
@@ -177,8 +174,13 @@ export default function ProfileDetailsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Hero Section with gradient background */}
-      <View className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 py-8">
+      {/* Scrollable Content */}
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* Hero Section with gradient background */}
+        <View className="bg-gradient-to-b from-orange-500 to-orange-400 px-6 py-8">
         <View className="items-center">
           {/* Avatar */}
           {cv.photoUrl ? (
@@ -196,8 +198,8 @@ export default function ProfileDetailsScreen() {
 
           {/* Name */}
           <Text
-            className="text-3xl font-bold text-white text-center mb-2"
-            style={{ textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}
+            className="text-3xl font-bold text-gray-900 text-center mb-2"
+            style={{ textShadowColor: 'transparent' }}
           >
             {fullName}
           </Text>
@@ -228,24 +230,24 @@ export default function ProfileDetailsScreen() {
             </View>
           )}
         </View>
-      </View>
+        </View>
 
-      {/* Contact Information Card */}
-      {(email || phone || location || age || gender) && (
-        <View className="bg-white p-6 mb-2 mx-4 -mt-4 rounded-lg shadow-md border border-gray-100">
-          <View className="gap-3">
-            {email && (
-              <View className="flex-row items-center gap-3">
-                <View className="w-10 h-10 bg-orange-100 rounded-lg items-center justify-center">
-                  <Mail size={18} color="#F97316" />
+        {/* Contact Information Card */}
+        {(email || phone || location || age || gender) && (
+          <View className="bg-white p-6 mb-2 mx-4 -mt-4 rounded-lg shadow-md border border-gray-100">
+            <View className="gap-3">
+              {email && (
+                <View className="flex-row items-center gap-3">
+                  <View className="w-10 h-10 bg-orange-100 rounded-lg items-center justify-center">
+                    <Mail size={18} color="#F97316" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs text-gray-500">Email</Text>
+                    <Text className="text-sm font-semibold text-gray-900">{email}</Text>
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-xs text-gray-500">Email</Text>
-                  <Text className="text-sm font-semibold text-gray-900">{email}</Text>
-                </View>
-              </View>
-            )}
-            {phone && (
+              )}
+              {phone && (
               <View className="flex-row items-center gap-3">
                 <View className="w-10 h-10 bg-blue-100 rounded-lg items-center justify-center">
                   <Phone size={18} color="#3B82F6" />
@@ -590,6 +592,7 @@ export default function ProfileDetailsScreen() {
 
       {/* Footer spacing */}
       <View className="h-6" />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
