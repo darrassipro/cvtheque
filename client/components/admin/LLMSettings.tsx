@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const LLM_PROVIDERS = {
   OPENAI: {
     name: 'OpenAI',
-    models: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4-vision'],
+    models: ['gpt-5.2', 'gpt-5-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4-vision'],
   },
   GROK: {
     name: 'Grok',

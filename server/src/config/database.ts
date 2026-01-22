@@ -26,6 +26,10 @@ function getSequelizeConfig(): Sequelize {
       charset: 'utf8mb4',
       dateStrings: true,
       typeCast: true,
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
     },
   };
 

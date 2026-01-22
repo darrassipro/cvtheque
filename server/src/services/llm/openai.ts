@@ -10,7 +10,8 @@ import { logger } from '../../utils/logger.js';
 export class OpenAIProvider extends BaseLLMProvider {
   provider = LLMProvider.OPENAI;
   private client: OpenAI | null = null;
-  private currentModelName: string = 'gpt-5.2-2025-12-11';
+  private apiKey: string | null = null;
+  private currentModelName: string = 'gpt-4-turbo';
 
   constructor() {
     super();
@@ -18,11 +19,13 @@ export class OpenAIProvider extends BaseLLMProvider {
 
   configure(apiKey: string): void {
     try {
+      this.apiKey = apiKey;
       this.client = new OpenAI({ apiKey });
       logger.info('OpenAI provider configured from DB');
     } catch (error) {
       logger.error('Failed to configure OpenAI provider:', error);
       this.client = null;
+      this.apiKey = null;
     }
   }
 
@@ -38,38 +41,59 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   async generateCompletion(request: LLMRequest): Promise<LLMResponse> {
-    if (!this.client) {
+    if (!this.apiKey) {
       throw new Error('OpenAI provider not initialized');
     }
 
     try {
-      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+      const payload = {
+        model: this.currentModelName,
+        input: request.prompt,
+        reasoning: {
+          effort: 'none',
+        },
+      };
 
-      if (request.systemPrompt) {
-        messages.push({ role: 'system', content: request.systemPrompt });
+      if (request.temperature !== undefined) {
+        (payload as any).temperature = request.temperature;
       }
 
-      messages.push({ role: 'user', content: request.prompt });
-
-      const response = await this.client.chat.completions.create({
-        model: this.currentModelName,
-        messages,
-        temperature: request.temperature ?? 0.1,
-        max_tokens: request.maxTokens ?? 4096,
-        top_p: request.topP ?? 0.95,
+      const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
-      const choice = response.choices[0];
-      const content = choice.message.content || '';
+      if (!response.ok) {
+        const errorData = await response.json() as any;
+        throw new Error(`OpenAI API error: ${errorData?.error?.message || response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+
+      // Extract text content from response
+      let content = '';
+      if (data?.output && Array.isArray(data.output)) {
+        const messageOutput = data.output.find((o: any) => o.type === 'message');
+        if (messageOutput && messageOutput.content && Array.isArray(messageOutput.content)) {
+          const textContent = messageOutput.content.find((c: any) => c.type === 'output_text');
+          if (textContent) {
+            content = textContent.text;
+          }
+        }
+      }
 
       return {
         content,
-        model: this.currentModelName,
+        model: data?.model || this.currentModelName,
         provider: 'openai',
-        usage: response.usage ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-          totalTokens: response.usage.total_tokens,
+        usage: data?.usage ? {
+          promptTokens: data.usage.input_tokens,
+          completionTokens: data.usage.output_tokens,
+          totalTokens: data.usage.total_tokens,
         } : undefined,
       };
     } catch (error) {
