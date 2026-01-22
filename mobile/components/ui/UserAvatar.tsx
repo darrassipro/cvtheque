@@ -18,12 +18,16 @@ interface UserAvatarProps {
 export default function UserAvatar({ onProfilePress }: UserAvatarProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const dispatch = useDispatch();
-  const user = useSelector((state: RootState) => state.auth.user);
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-  const handleLogout = () => {
+  const handleLogoutOrLogin = () => {
     setShowDropdown(false);
-    dispatch(logOut());
-    router.replace('/auth-modal');
+    if (isAuthenticated) {
+      dispatch(logOut());
+      router.replace('/auth-modal');
+    } else {
+      router.push('/auth-modal');
+    }
   };
 
   const handleViewProfile = () => {
@@ -61,22 +65,26 @@ export default function UserAvatar({ onProfilePress }: UserAvatarProps) {
           onPress={() => setShowDropdown(false)}
         >
           <View className="absolute top-16 right-4 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[160px]">
-            <TouchableOpacity
-              className="flex-row items-center gap-2 px-4 py-3 border-b border-slate-100"
-              onPress={handleViewProfile}
-              activeOpacity={0.7}
-            >
-              <UserIcon size={16} color="#64748B" />
-              <Text className="text-sm text-slate-700">Profile</Text>
-            </TouchableOpacity>
+            {isAuthenticated && (
+              <TouchableOpacity
+                className="flex-row items-center gap-2 px-4 py-3 border-b border-slate-100"
+                onPress={handleViewProfile}
+                activeOpacity={0.7}
+              >
+                <UserIcon size={16} color="#64748B" />
+                <Text className="text-sm text-slate-700">Profile</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               className="flex-row items-center gap-2 px-4 py-3"
-              onPress={handleLogout}
+              onPress={handleLogoutOrLogin}
               activeOpacity={0.7}
             >
-              <LogOut size={16} color="#EF4444" />
-              <Text className="text-sm text-red-500">Logout</Text>
+              <LogOut size={16} color={isAuthenticated ? '#EF4444' : '#F97316'} />
+              <Text className={`text-sm ${isAuthenticated ? 'text-red-500' : 'text-orange-500'}`}>
+                {isAuthenticated ? 'Logout' : 'Login'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>

@@ -16,6 +16,7 @@ import {
   Dimensions,
   SafeAreaView,
   Animated,
+  Keyboard,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLoginMutation, useRegisterMutation } from '@/lib/services/authApi';
@@ -58,14 +59,37 @@ export default function AuthModalScreen() {
   const [fullName, setFullName] = useState('');
   
   const [error, setError] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [login, { isLoading: loginLoading }] = useLoginMutation();
   const [register, { isLoading: registerLoading }] = useRegisterMutation();
 
   const isLoading = mode === 'login' ? loginLoading : registerLoading;
 
   // Animation values - minimalist security-themed
-  const shieldPulse = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Listen for keyboard show/hide and adjust modal position
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (event) => {
+        const kbHeight = event.endCoordinates?.height || 0;
+        setKeyboardHeight(kbHeight);
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     // If user is already authenticated, redirect them away from auth modal
@@ -75,29 +99,13 @@ export default function AuthModalScreen() {
       return;
     }
 
-    // Subtle shield pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shieldPulse, {
-          toValue: 1.1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shieldPulse, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
     // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fadeAnim]);
 
   // Handle close/dismiss
   const handleDismiss = () => {
@@ -152,11 +160,20 @@ export default function AuthModalScreen() {
   };
 
   const screenHeight = Dimensions.get('window').height;
+  // Keep sheet at bottom when keyboard closed; lift when open
+  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : 'height';
+  const keyboardOffset = Platform.OS === 'ios' ? 24 : 0;
+
+  // Adjust modal height based on keyboard - shrink when keyboard visible
+  const modalMaxHeight = keyboardHeight > 0 
+    ? screenHeight * 0.6 
+    : screenHeight * 0.85;
 
   return (
     <View className="flex-1" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={keyboardBehavior}
+        keyboardVerticalOffset={keyboardOffset}
         className="flex-1 justify-end"
       >
         {/* Overlay - Tap to dismiss */}
@@ -171,7 +188,7 @@ export default function AuthModalScreen() {
           <SafeAreaView
             className="bg-white rounded-t-3xl overflow-hidden border-t-4 border-orange-500"
             style={{
-              maxHeight: screenHeight * 0.85,
+              maxHeight: modalMaxHeight,
             }}
           >
             <ScrollView
@@ -208,9 +225,7 @@ export default function AuthModalScreen() {
               {/* Header - Minimalist Security Theme */}
               <View className="px-6 pb-6">
                 <View className="flex-row items-center mb-2">
-                  <Animated.View style={{ transform: [{ scale: shieldPulse }] }}>
-                    <Shield size={32} color="#F97316" strokeWidth={2} />
-                  </Animated.View>
+                  <Shield size={32} color="#F97316" strokeWidth={2} />
                   <Text className="text-3xl font-bold text-gray-900 ml-3">
                     {mode === 'login' ? 'Welcome Back' : 'Create Account'}
                   </Text>
