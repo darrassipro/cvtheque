@@ -10,6 +10,11 @@ export enum CVStatus {
   ARCHIVED = 'ARCHIVED',
 }
 
+export enum CVSource {
+  USER_UPLOAD = 'USER_UPLOAD',
+  SUPERADMIN_BULK = 'SUPERADMIN_BULK',
+}
+
 export enum DocumentType {
   PDF = 'PDF',
   DOCX = 'DOCX',
@@ -18,7 +23,7 @@ export enum DocumentType {
 
 export interface CVAttributes {
   id: string;
-  userId: string;
+  userId?: string | null; // Nullable for superadmin bulk uploads
   
   // Document Storage
   originalFileName: string;
@@ -30,6 +35,7 @@ export interface CVAttributes {
   
   // Processing Status
   status: CVStatus;
+  source: CVSource; // Track upload source
   isDefault: boolean;
   processingStartedAt?: Date;
   processingCompletedAt?: Date;
@@ -64,7 +70,7 @@ export interface CVCreationAttributes extends Optional<CVAttributes,
 
 export class CV extends Model<CVAttributes, CVCreationAttributes> implements CVAttributes {
   declare id: string;
-  declare userId: string;
+  declare userId?: string | null;
   declare originalFileName: string;
   declare documentType: DocumentType;
   declare fileSize: number;
@@ -72,6 +78,7 @@ export class CV extends Model<CVAttributes, CVCreationAttributes> implements CVA
   declare googleDriveMimeType?: string;
   declare fileChecksum?: string;
   declare status: CVStatus;
+  declare source: CVSource;
   declare isDefault: boolean;
   declare processingStartedAt?: Date;
   declare processingCompletedAt?: Date;
@@ -118,13 +125,13 @@ CV.init(
     },
     userId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true, // Nullable for superadmin bulk uploads
       field: 'user_id',
       references: {
         model: 'users',
         key: 'id',
       },
-      onDelete: 'CASCADE',
+      onDelete: 'SET NULL',
     },
     originalFileName: {
       type: DataTypes.STRING(500),
@@ -159,6 +166,11 @@ CV.init(
     status: {
       type: DataTypes.ENUM(...Object.values(CVStatus)),
       defaultValue: CVStatus.PENDING,
+      allowNull: false,
+    },
+    source: {
+      type: DataTypes.ENUM(...Object.values(CVSource)),
+      defaultValue: CVSource.USER_UPLOAD,
       allowNull: false,
     },
     isDefault: {

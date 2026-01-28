@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
 import { User, CV, CVStatus, AuditLog, SystemSettings, UserRole, UserStatus } from '../models/index.js';
+import { AuditAction } from '../models/AuditLog.js';
 import { AuthenticatedRequest, DashboardStats } from '../types/index.js';
 import { sequelize } from '../config/database.js';
 import { logSettingsChange } from '../middleware/audit.js';
@@ -372,7 +373,13 @@ export async function listUsers(req: AuthenticatedRequest, res: Response): Promi
  * Get user by ID
  */
 export async function getUserById(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
+
+  if (!id) {
+    res.status(400).json({ success: false, error: 'User ID is required' });
+    return;
+  }
 
   const user = await User.findByPk(id, {
     attributes: { exclude: ['password'] },
@@ -396,8 +403,14 @@ export async function getUserById(req: AuthenticatedRequest, res: Response): Pro
  * Update user role
  */
 export async function updateUserRole(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { role } = req.body;
+
+  if (!id) {
+    res.status(400).json({ success: false, error: 'User ID is required' });
+    return;
+  }
 
   if (!Object.values(UserRole).includes(role)) {
     res.status(400).json({
@@ -423,7 +436,7 @@ export async function updateUserRole(req: AuthenticatedRequest, res: Response): 
   // Log the change
   await AuditLog.create({
     userId: req.user!.userId,
-    action: 'UPDATE',
+    action: AuditAction.UPDATE,
     resource: 'User',
     resourceId: id,
     details: {
@@ -445,8 +458,14 @@ export async function updateUserRole(req: AuthenticatedRequest, res: Response): 
  * Update user status
  */
 export async function updateUserStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { status } = req.body;
+
+  if (!id) {
+    res.status(400).json({ success: false, error: 'User ID is required' });
+    return;
+  }
 
   if (!Object.values(UserStatus).includes(status)) {
     res.status(400).json({
@@ -472,7 +491,7 @@ export async function updateUserStatus(req: AuthenticatedRequest, res: Response)
   // Log the change
   await AuditLog.create({
     userId: req.user!.userId,
-    action: 'UPDATE',
+    action: AuditAction.UPDATE,
     resource: 'User',
     resourceId: id,
     details: {
@@ -494,7 +513,13 @@ export async function updateUserStatus(req: AuthenticatedRequest, res: Response)
  * Delete user
  */
 export async function deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
+
+  if (!id) {
+    res.status(400).json({ success: false, error: 'User ID is required' });
+    return;
+  }
 
   const user = await User.findByPk(id);
   if (!user) {
@@ -517,7 +542,7 @@ export async function deleteUser(req: AuthenticatedRequest, res: Response): Prom
   // Log before deletion
   await AuditLog.create({
     userId: req.user!.userId,
-    action: 'DELETE',
+    action: AuditAction.DELETE,
     resource: 'User',
     resourceId: id,
     details: {

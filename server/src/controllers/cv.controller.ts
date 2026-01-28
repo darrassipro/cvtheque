@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { Op } from 'sequelize';
-import { CV, CVStatus, CVExtractedData, LLMConfiguration, DocumentType, SystemSettings, User, CVList, CVListItem, CVListShare, UserRole } from '../models/index.js';
+import { CV, CVStatus, CVSource, CVExtractedData, LLMConfiguration, DocumentType, SystemSettings, User, CVList, CVListItem, CVListShare, UserRole } from '../models/index.js';
 import { AuthenticatedRequest } from '../types/index.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../middleware/errorHandler.js';
 import { getDocumentType, cleanupUploadedFile } from '../middleware/upload.js';
@@ -119,6 +119,7 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
     documentType: documentType as DocumentType,
     fileSize: file.size,
     status: CVStatus.PENDING,
+    source: CVSource.USER_UPLOAD,
     isDefault: isDefault,
   });
 
@@ -177,7 +178,103 @@ export async function uploadCV(req: AuthenticatedRequest, res: Response): Promis
 }
 
 /**
+ * Bulk upload CVs (Superadmin only)
+ * Uploads multiple CVs without linking them to user accounts
+ */
+export async function bulkUploadCVs(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  if (req.user.role !== UserRole.SUPERADMIN) {
+    throw new ForbiddenError('Only superadmins can bulk upload CVs');
+  }
+
+  const files = req.files as Express.Multer.File[];
+  
+  if (!files || files.length === 0) {
+    throw new ValidationError('No files uploaded');
+  }
+
+  logger.info(`[bulkUploadCVs] Superadmin ${req.user.userId} uploading ${files.length} CVs in bulk`);
+
+  // Check if LLM processing is enabled
+  const llmEnabledSetting = await SystemSettings.getSetting<boolean>('llmEnabled', true);
+  logger.info(`LLM Processing enabled: ${llmEnabledSetting}`);
+
+  // Get LLM configuration only if LLM processing is enabled
+  let llmConfig: LLMConfiguration | null = null;
+  if (llmEnabledSetting) {
+    llmConfig = await LLMConfiguration.findOne({
+      where: { isDefault: true, isActive: true },
+    });
+  }
+
+  const uploadResults: Array<{ fileName: string; cvId?: string; status: string; error?: string }> = [];
+
+  for (const file of files) {
+    try {
+      const documentType = getDocumentType(file.mimetype);
+
+      // Create CV record without userId (bulk upload not linked to user)
+      const cv = await CV.create({
+        userId: null, // No user association for bulk uploads
+        originalFileName: file.originalname,
+        documentType: documentType as DocumentType,
+        fileSize: file.size,
+        status: CVStatus.PENDING,
+        source: CVSource.SUPERADMIN_BULK,
+        isDefault: false,
+      });
+
+      await logAudit(req, AuditAction.UPLOAD, 'cv', cv.id, { bulk: true });
+
+      // Process CV asynchronously
+      cvProcessor.processCV(cv, file.path, llmConfig || undefined, llmEnabledSetting)
+        .then(async (result) => {
+          if (!result.success) {
+            logger.error(`Bulk CV processing failed: ${cv.id}`, result.error);
+          }
+        })
+        .catch(error => {
+          logger.error(`Bulk CV processing error: ${cv.id}`, error);
+        });
+
+      uploadResults.push({
+        fileName: file.originalname,
+        cvId: cv.id,
+        status: 'queued',
+      });
+
+    } catch (error: any) {
+      logger.error(`Failed to process bulk upload file: ${file.originalname}`, error);
+      uploadResults.push({
+        fileName: file.originalname,
+        status: 'failed',
+        error: error.message || 'Unknown error',
+      });
+    }
+  }
+
+  const successCount = uploadResults.filter(r => r.status === 'queued').length;
+  const failedCount = uploadResults.filter(r => r.status === 'failed').length;
+
+  res.status(202).json({
+    success: true,
+    message: `Bulk upload completed: ${successCount} CVs queued, ${failedCount} failed`,
+    data: {
+      total: files.length,
+      queued: successCount,
+      failed: failedCount,
+      results: uploadResults,
+    },
+  });
+}
+
+/**
  * List CVs (with pagination and filtering)
+ * Superadmin sees ALL CVs including bulk uploads
+ * Users see only their own CVs
  */
 export async function listCVs(req: AuthenticatedRequest, res: Response): Promise<void> {
   if (!req.user) {
@@ -188,6 +285,7 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
     page = 1,
     limit = 20,
     status,
+    source, // NEW: Filter by upload source
     search,
     skills,
     minExperience,
@@ -205,28 +303,39 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
   // Build where clause for CVs
   const cvWhere: any = {};
 
-  // Non-admin users only see their own CVs
-  if (req.user.role === 'USER') {
+  // Role-based access control
+  if (req.user.role === UserRole.SUPERADMIN) {
+    // Superadmin sees ALL CVs (including bulk uploads without userId)
+    logger.debug(`[listCVs] SUPERADMIN view - showing all CVs`);
+  } else if (req.user.role === UserRole.ADMIN || req.user.role === UserRole.MODERATOR) {
+    // Admin/Moderator sees all user-uploaded CVs (not bulk uploads)
+    cvWhere.userId = { [Op.ne]: null };
+    logger.debug(`[listCVs] ADMIN/MODERATOR view - showing user CVs only`);
+  } else {
+    // Regular users only see their own CVs
     cvWhere.userId = req.user.userId;
+    logger.debug(`[listCVs] USER view - showing own CVs only`);
   }
 
-  // Only show default CV
-  cvWhere.isDefault = true;
+  // Filter by source (superadmin only feature)
+  if (source && req.user.role === UserRole.SUPERADMIN) {
+    if (source === CVSource.USER_UPLOAD || source === CVSource.SUPERADMIN_BULK) {
+      cvWhere.source = source;
+      logger.debug(`[listCVs] Filtering by source: ${source}`);
+    }
+  }
 
-  // Default to showing only COMPLETED CVs unless explicitly requesting other statuses
+  // Only show default CV for regular users
+  if (req.user.role === UserRole.USER) {
+    cvWhere.isDefault = true;
+  }
+
+  // Status filter
   if (status) {
-    // Only allow specific status filters
     if ([CVStatus.COMPLETED, CVStatus.PROCESSING, CVStatus.PENDING, CVStatus.FAILED].includes(status as CVStatus)) {
       cvWhere.status = status;
       logger.debug(`[listCVs] Filtering by status: ${status}`);
-    } else {
-      // Invalid status, show all CVs
-      logger.debug(`[listCVs] Invalid status filter, showing all CVs`);
     }
-  } else {
-    // Default: Show all CVs regardless of processing status for robustness
-    // This ensures CVs are visible even if LLM extraction fails or is still processing
-    logger.debug(`[listCVs] No status filter provided, showing all CVs`);
   }
 
   // Build include with extracted data filters
@@ -369,6 +478,7 @@ export async function listCVs(req: AuthenticatedRequest, res: Response): Promise
       // Include user data in metadata for photo fallback chain
       metadata: {
         ...cvJson.metadata,
+        source: cvJson.source, // Include upload source
         user: (cv as any).user ? {
           avatar: userAvatarUrl,
           firstName: (cv as any).user.firstName,
@@ -1005,5 +1115,176 @@ export async function getSharedWithMe(req: AuthenticatedRequest, res: Response):
   res.json({
     success: true,
     data: transformed,
+  });
+}
+
+/**
+ * Update CV extracted data (Superadmin only)
+ * Allows superadmin to manually edit extracted CV information
+ */
+export async function updateCVExtractedData(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  if (req.user.role !== UserRole.SUPERADMIN) {
+    throw new ForbiddenError('Only superadmins can edit CV data');
+  }
+
+  const id = req.params.id as string;
+  const updateData = req.body;
+
+  const cv = await CV.findByPk(id, {
+    include: [{ model: CVExtractedData, as: 'extractedData' }],
+  });
+
+  if (!cv) {
+    throw new NotFoundError('CV');
+  }
+
+  const extractedData = (cv as any).extractedData;
+  if (!extractedData) {
+    throw new NotFoundError('CV extracted data not found. CV may still be processing.');
+  }
+
+  // Update extracted data fields
+  const allowedFields = [
+    'fullName', 'email', 'phone', 'location', 'city', 'country', 'age', 'gender',
+    'education', 'experience', 'skills', 'languages', 'certifications', 'internships',
+    'totalExperienceYears', 'seniorityLevel', 'industry', 'keywords'
+  ];
+
+  const updates: any = {};
+  for (const field of allowedFields) {
+    if (updateData[field] !== undefined) {
+      updates[field] = updateData[field];
+    }
+  }
+
+  await extractedData.update(updates);
+
+  await logAudit(req, AuditAction.UPDATE, 'cv_extracted_data', extractedData.id, {
+    updatedFields: Object.keys(updates),
+  });
+
+  res.json({
+    success: true,
+    message: 'CV data updated successfully',
+    data: transformExtractedData(extractedData),
+  });
+}
+
+/**
+ * Assign CVs to consultant (Superadmin feature)
+ * Allows filtering by CV or User Profile
+ */
+export async function assignCVsToConsultant(req: AuthenticatedRequest, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ForbiddenError('Authentication required');
+  }
+
+  if (req.user.role !== UserRole.SUPERADMIN) {
+    throw new ForbiddenError('Only superadmins can assign CVs');
+  }
+
+  const {
+    consultantId,
+    assignmentType, // 'cv' or 'user-profile'
+    cvIds, // for CV assignment
+    userIds, // for user profile assignment
+    name,
+    description,
+    expiresAt,
+  } = req.body as {
+    consultantId: string;
+    assignmentType: 'cv' | 'user-profile';
+    cvIds?: string[];
+    userIds?: string[];
+    name?: string;
+    description?: string;
+    expiresAt?: string;
+  };
+
+  if (!consultantId) {
+    throw new ValidationError('consultantId is required');
+  }
+
+  if (!assignmentType || !['cv', 'user-profile'].includes(assignmentType)) {
+    throw new ValidationError('assignmentType must be "cv" or "user-profile"');
+  }
+
+  // Ensure consultant exists
+  const consultant = await User.findByPk(consultantId);
+  if (!consultant) {
+    throw new NotFoundError('Consultant user');
+  }
+
+  let finalCvIds: string[] = [];
+
+  if (assignmentType === 'cv') {
+    // Direct CV assignment
+    if (!Array.isArray(cvIds) || cvIds.length === 0) {
+      throw new ValidationError('cvIds must be a non-empty array for CV assignment');
+    }
+    finalCvIds = cvIds;
+  } else {
+    // User profile assignment - get all CVs from selected users
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw new ValidationError('userIds must be a non-empty array for user profile assignment');
+    }
+
+    const userCVs = await CV.findAll({
+      where: {
+        userId: { [Op.in]: userIds },
+        isDefault: true, // Only default CVs
+      },
+      attributes: ['id'],
+    });
+
+    finalCvIds = userCVs.map(cv => cv.id);
+
+    if (finalCvIds.length === 0) {
+      throw new ValidationError('No CVs found for selected users');
+    }
+  }
+
+  // Create a list to group assigned CVs
+  const list = await CVList.create({
+    name: name || `Assignment - ${new Date().toISOString()}`,
+    description: description || `Assigned by superadmin ${req.user.userId}`,
+    userId: req.user.userId,
+    isPublic: false,
+  });
+
+  // Add CVs to the list
+  const uniqueCvIds = Array.from(new Set(finalCvIds));
+  await CVListItem.bulkCreate(
+    uniqueCvIds.map((cvId) => ({ listId: list.id, cvId })),
+    { ignoreDuplicates: true }
+  );
+
+  // Share the list with the consultant
+  const share = await CVListShare.create({
+    listId: list.id,
+    sharedWith: consultantId,
+    canEdit: false,
+    expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+  });
+
+  await logAudit(req, AuditAction.CREATE, 'cv_assignment', share.id, {
+    consultantId,
+    assignmentType,
+    cvCount: uniqueCvIds.length,
+  });
+
+  res.json({
+    success: true,
+    message: `${uniqueCvIds.length} CVs assigned to consultant`,
+    data: {
+      listId: list.id,
+      consultantId,
+      assignmentType,
+      cvCount: uniqueCvIds.length,
+    },
   });
 }

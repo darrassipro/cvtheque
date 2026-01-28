@@ -3,6 +3,19 @@
  * Principe SOLID: ISP - Interface spécifique pour chaque besoin
  */
 
+export enum CVSource {
+  USER_UPLOAD = 'USER_UPLOAD',
+  SUPERADMIN_BULK = 'SUPERADMIN_BULK',
+}
+
+export enum CVStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  ARCHIVED = 'ARCHIVED',
+}
+
 export interface CV {
   id: string;
   personalInfo: PersonalInfo;
@@ -65,6 +78,12 @@ export interface CVMetadata {
   uploadedAt?: string;
   processingStatus?: string;
   fileSize?: number;
+  source?: CVSource; // Upload source
+  user?: {
+    avatar?: string;
+    firstName?: string;
+    lastName?: string;
+  };
   rawData?: any;
 }
 

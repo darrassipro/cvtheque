@@ -17,7 +17,14 @@ const baseQuery = fetchBaseQuery({
 
 // BaseQuery with automatic token refresh on 401
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
+  console.log('[API] Making request to:', SERVER_GATEWAY_DOMAIN, args);
   let result = await baseQuery(args, api, extraOptions);
+  
+  console.log('[API] Response:', {
+    status: result.error?.status,
+    error: result.error?.data || result.error?.message,
+    data: result.data ? 'has data' : 'no data',
+  });
 
   // If we receive a 401 error (unauthorized)
   if (result.error && result.error.status === 401) {

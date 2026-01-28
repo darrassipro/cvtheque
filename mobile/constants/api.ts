@@ -7,6 +7,9 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+// Fixed production API URL used as last-resort fallback
+const PRODUCTION_FALLBACK = 'https://cvtheque.osc-fr1.scalingo.io';
+
 // Configuration du port du serveur
 const SERVER_PORT = process.env.EXPO_PUBLIC_SERVER_PORT || '12000';
 
@@ -56,7 +59,13 @@ const getApiBaseUrl = (): string => {
     return url;
   }
 
-  // 2) Auto-detect local IP from Expo
+  // 2) In release builds, force production backend (Expo dev host not available)
+  if (!__DEV__) {
+    console.log('✅ Using production fallback in release build:', PRODUCTION_FALLBACK);
+    return PRODUCTION_FALLBACK;
+  }
+
+  // 3) Auto-detect local IP from Expo (dev only)
   const localIP = getLocalIP();
 
   if (localIP) {
@@ -65,7 +74,7 @@ const getApiBaseUrl = (): string => {
     return url;
   }
 
-  // 3) Android Emulator fallback
+  // 4) Android Emulator fallback
   // 10.0.2.2 is the special IP for accessing the host machine in Android emulator
   if (Platform.OS === 'android') {
     const emulatorUrl = `http://10.0.2.2:${SERVER_PORT}`;
@@ -74,7 +83,7 @@ const getApiBaseUrl = (): string => {
     return emulatorUrl;
   }
 
-  // 4) iOS Simulator fallback
+  // 5) iOS Simulator fallback
   // localhost works on iOS simulator
   if (Platform.OS === 'ios') {
     const iosUrl = `http://localhost:${SERVER_PORT}`;
@@ -83,17 +92,16 @@ const getApiBaseUrl = (): string => {
     return iosUrl;
   }
 
-  // 5) Web fallback
+  // 6) Web fallback
   if (Platform.OS === 'web') {
     const webUrl = `http://localhost:${SERVER_PORT}`;
     console.log('⚠️ Using web fallback:', webUrl);
     return webUrl;
   }
 
-  // 6) Last resort - hardcoded localhost (should rarely reach here)
-  const fallbackUrl = `http://localhost:${SERVER_PORT}`;
-  console.warn('⚠️ No auto-detection available, using localhost fallback:', fallbackUrl);
-  return fallbackUrl;
+  // 7) Production fallback (should rarely hit in dev)
+  console.warn('⚠️ No auto-detection available, using production fallback:', PRODUCTION_FALLBACK);
+  return PRODUCTION_FALLBACK;
 };
 
 // Export the API configuration

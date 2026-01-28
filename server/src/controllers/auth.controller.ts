@@ -47,8 +47,8 @@ export async function register(req: AuthenticatedRequest, res: Response): Promis
   // Set httpOnly cookie for access token
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 15 * 60 * 1000, // 15 minutes
     path: '/',
   });
@@ -56,8 +56,8 @@ export async function register(req: AuthenticatedRequest, res: Response): Promis
   // Set httpOnly cookie for refresh token
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
   });
@@ -128,8 +128,8 @@ export async function login(req: AuthenticatedRequest, res: Response): Promise<v
   // Set httpOnly cookie for access token
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 15 * 60 * 1000, // 15 minutes
     path: '/',
   });
@@ -137,8 +137,8 @@ export async function login(req: AuthenticatedRequest, res: Response): Promise<v
   // Set httpOnly cookie for refresh token
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
   });
@@ -217,16 +217,16 @@ export async function refreshAccessToken(req: AuthenticatedRequest, res: Respons
   // Set new tokens in httpOnly cookies
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 15 * 60 * 1000, // 15 minutes
     path: '/',
   });
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: true, // Always secure on HTTPS
+    sameSite: 'none', // Allow cross-origin cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     path: '/',
   });

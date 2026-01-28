@@ -1,7 +1,7 @@
 // Export all models
 export { User, UserRole, UserStatus, type UserAttributes, type UserCreationAttributes } from './User.js';
 export { RefreshToken, type RefreshTokenAttributes, type RefreshTokenCreationAttributes } from './RefreshToken.js';
-export { CV, CVStatus, DocumentType, type CVAttributes, type CVCreationAttributes } from './CV.js';
+export { CV, CVStatus, CVSource, DocumentType, type CVAttributes, type CVCreationAttributes } from './CV.js';
 export { 
   CVExtractedData, 
   type CVExtractedDataAttributes, 

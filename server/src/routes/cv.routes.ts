@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import * as cvController from '../controllers/cv.controller.js';
 import { authenticate, requireActiveAccount } from '../middleware/auth.js';
-import { authorize, requireAdmin, requireModerator } from '../middleware/authorize.js';
+import { authorize, requireAdmin, requireModerator, requireSuperAdmin } from '../middleware/authorize.js';
 import { validate, cvSchemas } from '../middleware/validate.js';
-import { uploadCV } from '../middleware/upload.js';
+import { uploadCV, uploadMultipleCVs } from '../middleware/upload.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { UserRole } from '../models/index.js';
 
@@ -41,6 +41,79 @@ router.post(
   '/upload',
   uploadCV,
   asyncHandler(cvController.uploadCV)
+);
+
+/**
+ * @swagger
+ * /api/cvs/bulk-upload:
+ *   post:
+ *     summary: Bulk upload CVs (Superadmin only)
+ *     tags: [CVs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cvs:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       202:
+ *         description: CVs uploaded and queued for processing
+ *       403:
+ *         description: Superadmin access required
+ */
+router.post(
+  '/bulk-upload',
+  requireSuperAdmin,
+  uploadMultipleCVs,
+  asyncHandler(cvController.bulkUploadCVs)
+);
+
+/**
+ * @swagger
+ * /api/cvs/assign-to-consultant:
+ *   post:
+ *     summary: Assign CVs to consultant (Superadmin only)
+ *     tags: [CVs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               consultantId:
+ *                 type: string
+ *               assignmentType:
+ *                 type: string
+ *                 enum: [cv, user-profile]
+ *               cvIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: CVs assigned successfully
+ *       403:
+ *         description: Superadmin access required
+ */
+router.post(
+  '/assign-to-consultant',
+  requireSuperAdmin,
+  asyncHandler(cvController.assignCVsToConsultant)
 );
 
 // Share CVs with a consultant (admin/moderator/superadmin)
@@ -178,6 +251,39 @@ router.get(
   '/:id/extracted-data',
   validate({ params: cvSchemas.params }),
   asyncHandler(cvController.getCVExtractedData)
+);
+
+/**
+ * @swagger
+ * /api/cvs/{id}/extracted-data:
+ *   put:
+ *     summary: Update CV extracted data (Superadmin only)
+ *     tags: [CVs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: CV data updated successfully
+ *       403:
+ *         description: Superadmin access required
+ */
+router.put(
+  '/:id/extracted-data',
+  requireSuperAdmin,
+  validate({ params: cvSchemas.params }),
+  asyncHandler(cvController.updateCVExtractedData)
 );
 
 /**
